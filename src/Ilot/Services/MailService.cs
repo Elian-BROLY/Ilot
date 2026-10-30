@@ -121,6 +121,8 @@ internal sealed class MailService
     public async Task<string?> ConnectImapAsync(string address, string password, string host, CancellationToken cancellationToken = default)
     {
         var server = string.IsNullOrWhiteSpace(host) ? ImapClient.GuessHost(address) : host.Trim();
+        // Un mot de passe collé emporte souvent un espace ou un retour à la ligne, que le serveur refuserait.
+        password = password.Trim();
         if (string.IsNullOrWhiteSpace(address) || string.IsNullOrEmpty(password))
         {
             return Loc.T("Indiquez l'adresse et le mot de passe d'application.");

@@ -826,6 +826,17 @@ public sealed class ImapClientTests : IDisposable
     }
 
     [Fact]
+    public async Task ConnectTrimsPastedPassword()
+    {
+        var service = new MailService(Path.Combine(_folder, "mail.dat"))
+        {
+            ImapConnector = (_, user, password, token) => ImapClient.OverStreamAsync(new FakeImapStream(("LOGIN", LoginOk)), user, password, token),
+        };
+        Assert.Null(await service.ConnectImapAsync("moi@gmail.com", " secret\r\n", string.Empty));
+        Assert.Equal("secret", service.Credentials.ImapPassword);
+    }
+
+    [Fact]
     public async Task RefusedConnectStoresNothing()
     {
         var service = new MailService(Path.Combine(_folder, "mail.dat"))

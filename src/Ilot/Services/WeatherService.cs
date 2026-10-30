@@ -25,7 +25,7 @@ internal static class WeatherService
     {
         try
         {
-            var url = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(city)}&count={MaxCityChoices}&language=fr&format=json";
+            var url = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(city)}&count={MaxCityChoices}&language={Loc.Language}&format=json";
             return ParseCities(await Http.GetStringAsync(url));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException or UriFormatException)

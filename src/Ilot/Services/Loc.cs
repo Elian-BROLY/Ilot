@@ -20,6 +20,9 @@ internal static partial class Loc
 
     public static void SetLanguage(string language) => _isEnglish = Resolve(language) == "en";
 
+    /// <summary>« fr » ou « en », pour les services qui renvoient du texte dans une langue donnée.</summary>
+    public static string Language => _isEnglish ? "en" : "fr";
+
     public static string T(string french) => _isEnglish ? ToEnglish(french) : french;
 
     public static string T(string french, params object[] values) =>
