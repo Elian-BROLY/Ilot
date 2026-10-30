@@ -111,6 +111,8 @@ public partial class App : Application
         }
     }
 
+    internal static void PreviewAnimation() => ((App)Current)._mainWindow?.PreviewAnimation();
+
     private void ShowSettings()
     {
         if (_settingsWindow is null)

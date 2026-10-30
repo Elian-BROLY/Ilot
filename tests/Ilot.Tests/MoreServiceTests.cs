@@ -59,6 +59,65 @@ public class TimerServiceTests
         JsonSerializer.Deserialize<TimerSnapshot>(JsonSerializer.Serialize(snapshot))!;
 }
 
+public class CapsuleMotionTests
+{
+    // Le panneau ouvert fait 420 × 208 dans une fenêtre de 468 × 240 : un rebond ne doit pas être coupé par ses bords.
+    private const double MaxOvershoot = 468.0 / 420;
+
+    public static TheoryData<string> Styles() => [.. CapsuleMotions.All];
+
+    [Theory]
+    [MemberData(nameof(Styles))]
+    public void OpeningStaysInsideTheWindow(string style)
+    {
+        var motion = CapsuleMotions.Open(style);
+        foreach (var step in new[] { motion.Width, motion.Height })
+        {
+            for (var t = 0.0; t <= 1; t += 0.01)
+            {
+                Assert.True((step.Ease?.Ease(t) ?? t) <= MaxOvershoot, $"{style} dépasse à t={t}");
+            }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Styles))]
+    public void EveryStyleOpensAndClosesInLessThanASecond(string style)
+    {
+        foreach (var motion in new[] { CapsuleMotions.Open(style), CapsuleMotions.Close(style) })
+        {
+            Assert.True(motion.Height.DurationMs + motion.Height.DelayMs < 1000);
+            Assert.True(motion.Width.DurationMs + motion.Width.DelayMs < 1000);
+        }
+    }
+
+    [Fact]
+    public void ClassicKeepsTheOriginalTimings()
+    {
+        Assert.Equal(380, CapsuleMotions.Open(CapsuleMotions.Classic).Height.DurationMs);
+        Assert.Equal(260, CapsuleMotions.Close(CapsuleMotions.Classic).Height.DurationMs);
+    }
+
+    [Fact]
+    public void ClassicIsTheDefault() => Assert.Equal(CapsuleMotions.Classic, new AppSettings().AnimationStyle);
+
+    [Fact]
+    public void UnknownStyleFallsBackToClassic()
+    {
+        var settings = new AppSettings { AnimationStyle = "inconnu" };
+        SettingsStore.Normalize(settings);
+        Assert.Equal(CapsuleMotions.Classic, settings.AnimationStyle);
+    }
+
+    [Fact]
+    public void ChosenStyleIsKept()
+    {
+        var settings = new AppSettings { AnimationStyle = CapsuleMotions.Slide };
+        SettingsStore.Normalize(settings);
+        Assert.Equal(CapsuleMotions.Slide, settings.AnimationStyle);
+    }
+}
+
 public class NewUserDefaultsTests
 {
     [Fact]

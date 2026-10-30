@@ -101,6 +101,8 @@ public partial class MainWindow : Window
     private readonly ConsecutiveLowReadings _airPodsLowReadings = new(threshold: 20, required: 3);
     private readonly VolumeService _volume = new();
     private readonly DispatcherTimer _volumeFeedbackTimer = new() { Interval = TimeSpan.FromSeconds(1.2) };
+    private readonly DispatcherTimer _animationPreviewTimer = new() { Interval = TimeSpan.FromSeconds(1.3) };
+    private bool _isPreviewReopening;
     private bool _isDraggingFile;
     private bool _pausedMusicForBreak;
 
@@ -121,6 +123,7 @@ public partial class MainWindow : Window
             [PageIds.Calendar] = CalendarPanel,
             [PageIds.Files] = FilesPanel,
         };
+        _animationPreviewTimer.Tick += (_, _) => OnAnimationPreviewTick();
         CalendarPanel.ReminderDue += OnCalendarReminder;
         CalendarPanel.CountdownChanged += UpdateCompactIndicators;
         TimerPanel.Service.PomodoroAdvanced += OnPomodoroAdvanced;
@@ -967,11 +970,11 @@ public partial class MainWindow : Window
         Capsule.BorderBrush = (Brush)FindResource("HoverBrush");
         Capsule.BorderThickness = ExpandedBorder;
 
-        var duration = TimeSpan.FromMilliseconds(380);
-        var spring = new SpringEase();
-        Animate(Capsule, WidthProperty, ExpandedWidth, duration, spring);
-        Animate(Capsule, HeightProperty, CurrentExpandedHeight, duration, spring);
-        Animate(this, CapsuleRadiusProperty, ExpandedRadius, duration, null);
+        var motion = CapsuleMotions.Open(_settings.Current.AnimationStyle);
+        Animate(Capsule, WidthProperty, ExpandedWidth, motion.Width);
+        Animate(Capsule, HeightProperty, CurrentExpandedHeight, motion.Height);
+        Animate(this, CapsuleRadiusProperty, ExpandedRadius, motion.Radius);
+        FadeWindowIfNeeded(motion);
         CapsuleFill.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(ExpandedFill, Scaled(TimeSpan.FromMilliseconds(200))));
         Animate(CompactContent, OpacityProperty, 0, TimeSpan.FromMilliseconds(90), null);
         Animate(ExpandedPanel, OpacityProperty, 1, TimeSpan.FromMilliseconds(220), null, TimeSpan.FromMilliseconds(90));
@@ -1002,9 +1005,13 @@ public partial class MainWindow : Window
         }
         UpdateCompactIndicators();
 
-        var duration = TimeSpan.FromMilliseconds(260);
-        var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
-        var sizeAnimation = new DoubleAnimation(CompactHeight, Scaled(duration)) { EasingFunction = ease };
+        var motion = CapsuleMotions.Close(_settings.Current.AnimationStyle);
+        var duration = TimeSpan.FromMilliseconds(motion.Height.DelayMs + motion.Height.DurationMs);
+        var sizeAnimation = new DoubleAnimation(CompactHeight, Scaled(TimeSpan.FromMilliseconds(motion.Height.DurationMs)))
+        {
+            EasingFunction = motion.Height.Ease,
+            BeginTime = Scaled(TimeSpan.FromMilliseconds(motion.Height.DelayMs)),
+        };
         sizeAnimation.Completed += (_, _) =>
         {
             // Une réouverture ou une bannière a pu survenir pendant l'animation.
@@ -1019,12 +1026,68 @@ public partial class MainWindow : Window
             }
         };
         Capsule.BeginAnimation(HeightProperty, sizeAnimation);
-        Animate(Capsule, WidthProperty, CompactWidth, duration, ease);
-        Animate(this, CapsuleRadiusProperty, CompactRadius, duration, null);
+        Animate(Capsule, WidthProperty, CompactWidth, motion.Width);
+        Animate(this, CapsuleRadiusProperty, CompactRadius, motion.Radius);
+        FadeWindowIfNeeded(motion);
         CapsuleFill.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(CompactFill, Scaled(duration)));
         Animate(ExpandedPanel, OpacityProperty, 0, TimeSpan.FromMilliseconds(100), null);
         Animate(CompactContent, OpacityProperty, 1, TimeSpan.FromMilliseconds(160), null, TimeSpan.FromMilliseconds(100));
         Animate(CapsuleShadow, OpacityProperty, 0, duration, null);
+    }
+
+    private void Animate(IAnimatable target, DependencyProperty property, double to, MotionStep step) =>
+        Animate(target, property, to, TimeSpan.FromMilliseconds(step.DurationMs), step.Ease, TimeSpan.FromMilliseconds(step.DelayMs));
+
+    // Style Fondu : la capsule disparaît, change de taille pendant qu'elle est invisible, puis réapparaît.
+    private void FadeWindowIfNeeded(CapsuleMotion motion)
+    {
+        if (!motion.FadesWindow)
+        {
+            RootGrid.BeginAnimation(OpacityProperty, null);
+            return;
+        }
+        var fade = new DoubleAnimationUsingKeyFrames { Duration = Scaled(TimeSpan.FromMilliseconds(CapsuleMotions.FadeOutMs + CapsuleMotions.FadeInMs)) };
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(Scaled(TimeSpan.FromMilliseconds(CapsuleMotions.FadeOutMs)))));
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(Scaled(TimeSpan.FromMilliseconds(CapsuleMotions.FadeOutMs + CapsuleMotions.FadeInMs)))));
+        RootGrid.BeginAnimation(OpacityProperty, fade);
+    }
+
+    /// <summary>Montre le style choisi dans les réglages : ouvre le panneau, puis le referme.</summary>
+    internal void PreviewAnimation()
+    {
+        if (_isHiddenForFullscreen || _isPinned)
+        {
+            return;
+        }
+        _animationPreviewTimer.Stop();
+        _expandTimer.Stop();
+        _collapseTimer.Stop();
+        if (_isExpanded)
+        {
+            Collapse();
+            _isPreviewReopening = true;
+        }
+        else
+        {
+            Expand();
+            _isPreviewReopening = false;
+        }
+        _animationPreviewTimer.Start();
+    }
+
+    private void OnAnimationPreviewTick()
+    {
+        _animationPreviewTimer.Stop();
+        if (_isPreviewReopening)
+        {
+            _isPreviewReopening = false;
+            Expand();
+            _animationPreviewTimer.Start();
+        }
+        else if (_isExpanded && !_isPinned && !IsCursorOverCapsule())
+        {
+            Collapse();
+        }
     }
 
     private TimeSpan Scaled(TimeSpan duration) => duration * _settings.Current.AnimationDurationFactor;

@@ -28,6 +28,6 @@ tests/Ilot.Tests/       Tests des services
 ## Publier une version
 
 1. Augmentez `<Version>` dans `Ilot.csproj` et poussez le commit.
-2. Lancez `git tag v1.6.0`, puis `git push origin v1.6.0`, avec le même numéro.
+2. Lancez `git tag v1.7.0`, puis `git push origin v1.7.0`, avec le même numéro.
 
 GitHub Actions lance les tests, construit l'installateur et publie la Release. Les copies installées la trouvent en moins de 6 heures et la proposent dans une bannière : elle ne s'installe que sur un clic, car Windows peut refuser de lancer un exécutable non signé.

@@ -58,6 +58,7 @@ Ces raccourcis se changent dans les réglages. Au premier lancement, un assistan
 - **Note rapide** : jusqu'à 5 notes, avec des cases à cocher, enregistrées automatiquement, en clair, dans `%APPDATA%\Ilot\note.txt`, `note2.txt`…
 - **Casque** : la ligne du bas affiche les AirPods ou un autre casque Bluetooth, au choix ou masquée. Un casque autre que des AirPods n'a qu'une jauge, si Windows connaît sa batterie.
 - **Langue** : français ou anglais.
+- **Animations** : cinq styles au choix (classique, rebond, fluide, glissé, fondu), à essayer directement depuis les réglages.
 - **Micro et caméra** : point orange pour le micro, vert pour la caméra.
 - **Alertes batterie** : PC à 20 % et 10 %, AirPods à 20 % (contrôle toutes les 5 min tant qu'ils sont connectés), chargeur branché ou débranché.
 - **Température** : affichée à côté de l'heure en mode compact, sauf si les autres indicateurs ont besoin de la place.

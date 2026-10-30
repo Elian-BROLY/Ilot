@@ -238,11 +238,11 @@ public partial class MainWindow
         // Aussi si une bannière est déjà affichée : elle n'a pas forcément la même taille.
         BannerPanel.Width = width;
         BannerPanel.Height = height;
-        var duration = TimeSpan.FromMilliseconds(380);
-        var spring = new SpringEase();
-        Animate(Capsule, WidthProperty, width, duration, spring);
-        Animate(Capsule, HeightProperty, height, duration, spring);
-        Animate(this, CapsuleRadiusProperty, height / 2, duration, null);
+        var motion = CapsuleMotions.Open(_settings.Current.AnimationStyle);
+        Animate(Capsule, WidthProperty, width, motion.Width);
+        Animate(Capsule, HeightProperty, height, motion.Height);
+        Animate(this, CapsuleRadiusProperty, height / 2, motion.Radius);
+        FadeWindowIfNeeded(motion);
         if (_isBannerVisible)
         {
             return;

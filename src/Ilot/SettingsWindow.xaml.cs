@@ -78,6 +78,7 @@ public partial class SettingsWindow : Window
         CollapseDelaySlider.Value = settings.CollapseDelayMs;
         RenderDelayTexts();
         AnimationCombo.SelectedIndex = settings.AnimationDurationFactor switch { 0 => 2, < 1 => 1, _ => 0 };
+        AnimationStyleCombo.SelectedItem = AnimationStyleCombo.Items.Cast<ComboBoxItem>().First(item => (string)item.Tag == settings.AnimationStyle);
 
         LoadScreens();
         AutostartCheck.IsChecked = AutostartService.IsEnabled;
@@ -409,6 +410,18 @@ public partial class SettingsWindow : Window
             _store.Update(settings => settings.AnimationDurationFactor = double.Parse(tag, CultureInfo.InvariantCulture));
         }
     }
+
+    // Choisir un style le montre tout de suite sur la capsule.
+    private void AnimationStyle_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoading && AnimationStyleCombo.SelectedItem is ComboBoxItem { Tag: string style })
+        {
+            _store.Update(settings => settings.AnimationStyle = style);
+            App.PreviewAnimation();
+        }
+    }
+
+    private void PreviewAnimation_Click(object sender, RoutedEventArgs e) => App.PreviewAnimation();
 
     private void Screen_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

@@ -33,6 +33,8 @@ internal sealed class AppSettings
     public int CollapseDelayMs { get; set; } = 300;
     /// <summary>Multiplicateur des durées d'animation : 1 normal, 0,6 rapide, 0 aucune animation.</summary>
     public double AnimationDurationFactor { get; set; } = 1;
+    /// <summary>Voir <see cref="Controls.CapsuleMotions"/>. Par défaut, l'ouverture d'origine.</summary>
+    public string AnimationStyle { get; set; } = Controls.CapsuleMotions.Classic;
     /// <summary>Nom système de l'écran (\\.\DISPLAY1). Absent : écran principal.</summary>
     public string? MonitorDevice { get; set; }
     /// <summary>Vrai : la capsule passe sur l'écran où se trouve la souris, et <see cref="MonitorDevice"/> est ignoré.</summary>
@@ -174,6 +176,10 @@ internal sealed class SettingsStore
     internal static void Normalize(AppSettings settings)
     {
         // Un fichier modifié à la main peut contenir "Pages": null.
+        if (!Controls.CapsuleMotions.All.Contains(settings.AnimationStyle))
+        {
+            settings.AnimationStyle = Controls.CapsuleMotions.Classic;
+        }
         settings.MutedNotificationApps ??= [];
         settings.KnownNotificationApps ??= [];
         settings.Hotkeys ??= [];

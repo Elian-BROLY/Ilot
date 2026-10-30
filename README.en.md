@@ -17,7 +17,7 @@ A capsule at the top of your Windows 11 screen, inspired by the iPhone's pill-sh
 - **Calendar:** today's and tomorrow's events, a countdown in the capsule and a reminder with a join button (Google or Outlook, read-only).
 - **Everyday pages:** weather, per-app volume, audio output, timer with focus mode and Pomodoro, notes with checkboxes, file shelf and system stats.
 - **Indicators and alerts:** Windows notifications with per-app muting and quiet hours, microphone and camera dots, PC and Bluetooth headset battery.
-- **Customizable keyboard shortcuts**, light and dark themes, several screens, English and French.
+- **Customizable keyboard shortcuts**, five animation styles, light and dark themes, several screens, English and French.
 
 ## Install
 

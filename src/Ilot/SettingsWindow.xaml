@@ -212,7 +212,23 @@
                                 <RowDefinition Height="36" />
                                 <RowDefinition Height="36" />
                                 <RowDefinition Height="40" />
+                                <RowDefinition Height="40" />
                             </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Style d'animation" />
+                            <DockPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center">
+                                <Button x:Name="PreviewAnimationButton" DockPanel.Dock="Right" Margin="8,0,0,0" Content="Essayer" Click="PreviewAnimation_Click" />
+                                <ComboBox x:Name="AnimationStyleCombo"
+                                          HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="Style d'animation"
+                                          SelectionChanged="AnimationStyle_SelectionChanged">
+                                    <ComboBoxItem Content="Classique" Tag="classic" />
+                                    <ComboBoxItem Content="Rebond" Tag="bounce" />
+                                    <ComboBoxItem Content="Fluide" Tag="smooth" />
+                                    <ComboBoxItem Content="Glissé" Tag="slide" />
+                                    <ComboBoxItem Content="Fondu" Tag="fade" />
+                                </ComboBox>
+                            </DockPanel>
 
                             <TextBlock VerticalAlignment="Center" Text="Délai d'ouverture" />
                             <Slider x:Name="ExpandDelaySlider" Grid.Column="1"
