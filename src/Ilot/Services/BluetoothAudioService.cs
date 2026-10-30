@@ -4,7 +4,10 @@ using Ilot.Interop;
 
 namespace Ilot.Services;
 
-internal sealed record BluetoothAudioDevice(Guid ContainerId, string Name, bool IsConnected, ushort? ProductId);
+internal sealed record BluetoothAudioDevice(Guid ContainerId, string Name, bool IsConnected, ushort? ProductId)
+{
+    public bool IsAirPods => Name.Contains("AirPods", StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>
 /// Connecte et déconnecte un appareil audio Bluetooth déjà appairé, via les requêtes KS documentées par Microsoft
@@ -42,8 +45,8 @@ internal sealed partial class BluetoothAudioService
         _notificationEnumerator.RegisterEndpointNotificationCallback(_notificationClient);
     });
 
-    /// <summary>Renvoie les AirPods s'ils sont appairés. Les autres appareils Bluetooth sont volontairement ignorés.</summary>
-    public static Task<BluetoothAudioDevice?> FindAirPodsAsync() => Task.Run(() =>
+    /// <summary>Les casques et enceintes Bluetooth appairés.</summary>
+    public static Task<List<BluetoothAudioDevice>> FindDevicesAsync() => Task.Run(() =>
     {
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
         try
@@ -51,13 +54,49 @@ internal sealed partial class BluetoothAudioService
             return ListEndpoints(enumerator)
                 .GroupBy(endpoint => endpoint.ContainerId)
                 .Select(ToDevice)
-                .FirstOrDefault(device => device.Name.Contains("AirPods", StringComparison.OrdinalIgnoreCase));
+                .ToList();
         }
         finally
         {
             Marshal.ReleaseComObject(enumerator);
         }
     });
+
+    /// <summary>
+    /// L'appareil à afficher : celui choisi s'il est encore appairé, sinon les AirPods, sinon le casque connecté, sinon le premier.
+    /// </summary>
+    internal static BluetoothAudioDevice? Choose(IReadOnlyList<BluetoothAudioDevice> devices, string preferredName) =>
+        devices.FirstOrDefault(device => preferredName.Length > 0 && device.Name.Equals(preferredName, StringComparison.OrdinalIgnoreCase))
+        ?? devices.FirstOrDefault(device => device.IsAirPods)
+        ?? devices.FirstOrDefault(device => device.IsConnected)
+        ?? devices.FirstOrDefault();
+
+    /// <summary>
+    /// Le niveau de batterie que Windows connaît pour un casque (propriété affichée dans ses Paramètres). Tous les casques ne le
+    /// publient pas : null dans ce cas. Les AirPods ne passent pas par là : leurs annonces Bluetooth donnent chaque écouteur.
+    /// </summary>
+    public static async Task<int?> ReadBatteryAsync(string deviceName)
+    {
+        const string BatteryProperty = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
+        try
+        {
+            var devices = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(
+                Windows.Devices.Bluetooth.BluetoothDevice.GetDeviceSelectorFromPairingState(true), [BatteryProperty]);
+            foreach (var device in devices)
+            {
+                if (device.Name.Contains(deviceName, StringComparison.OrdinalIgnoreCase)
+                    && device.Properties.TryGetValue(BatteryProperty, out var value) && value is byte level)
+                {
+                    return level;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write(ex);
+        }
+        return null;
+    }
 
     /// <summary>Renvoie true si le pilote a accepté la demande, ce qui ne garantit pas que la connexion aboutisse.</summary>
     public static Task<bool> RequestConnectionAsync(Guid containerId, bool connect) => Task.Run(() =>

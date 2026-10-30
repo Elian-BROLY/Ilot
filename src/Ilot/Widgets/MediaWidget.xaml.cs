@@ -41,7 +41,7 @@ public partial class MediaWidget : UserControl
     private void Render()
     {
         var hasTrack = Service.HasSession && Service.Title.Length > 0;
-        TitleText.Text = hasTrack ? Service.Title : "Aucune lecture en cours";
+        TitleText.Text = hasTrack ? Service.Title : Loc.T("Aucune lecture en cours");
         ArtistText.Text = hasTrack ? Service.Artist : string.Empty;
 
         PreviousButton.IsEnabled = Service.CanGoPrevious;
@@ -50,7 +50,7 @@ public partial class MediaWidget : UserControl
 
         SourceButton.Visibility = Service.SourceCount > 1 ? Visibility.Visible : Visibility.Collapsed;
         SourceText.Text = Service.SourceName;
-        var switchLabel = $"Passer à {Service.NextSourceName}";
+        var switchLabel = Loc.T("Passer à {0}", Service.NextSourceName);
         SourceButton.ToolTip = switchLabel;
         AutomationProperties.SetName(SourceButton, switchLabel);
 

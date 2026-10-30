@@ -16,6 +16,7 @@ internal enum MailProvider
     Gmail,
     Outlook,
     Gmail2,
+    Imap,
 }
 
 internal static class MailProviderExtensions
@@ -26,6 +27,7 @@ internal static class MailProviderExtensions
     {
         MailProvider.Gmail => "Gmail",
         MailProvider.Gmail2 => "Gmail 2",
+        MailProvider.Imap => "Mail",
         _ => "Outlook",
     };
 }
@@ -39,6 +41,10 @@ internal sealed class MailCredentials
     public string? GmailRefreshToken { get; set; }
     /// <summary>Second compte Gmail : il passe par le même client OAuth que le premier.</summary>
     public string? Gmail2RefreshToken { get; set; }
+    /// <summary>Compte IMAP : pour les services qui acceptent un mot de passe d'application, sans projet Google ou Azure.</summary>
+    public string? ImapHost { get; set; }
+    public string? ImapAddress { get; set; }
+    public string? ImapPassword { get; set; }
 }
 
 /// <summary>IsLoaded est faux si seul l'identifiant est connu : Gmail exige une requête par message pour le reste.</summary>
@@ -66,6 +72,9 @@ internal sealed class MailService
     private const string GmailScope = "https://www.googleapis.com/auth/gmail.modify";
     private const string GmailApi = "https://gmail.googleapis.com/gmail/v1/users/me";
     private const string GraphApi = "https://graph.microsoft.com/v1.0/me";
+    private const string GoogleCalendarScope = "https://www.googleapis.com/auth/calendar.readonly";
+    private const string OutlookCalendarScope = "Calendars.Read";
+    private const string GoogleCalendarApi = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
     private const string OutlookAuthorizeUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
     private const string OutlookTokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     private const string GmailAuthorizeUrl = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -93,12 +102,126 @@ internal sealed class MailService
     /// <summary>Remplaçable pour tester sans ouvrir de navigateur.</summary>
     internal Func<string, bool> BrowserOpener { get; set; } = StartBrowser;
 
+    /// <summary>Remplaçable pour tester sans serveur IMAP.</summary>
+    internal Func<string, string, string, CancellationToken, Task<ImapClient>> ImapConnector { get; set; } = ImapClient.ConnectAsync;
+
+    /// <summary>Vrai : une nouvelle connexion demande aussi l'accès en lecture à l'agenda. Faux si la page Agenda est masquée.</summary>
+    public bool RequestCalendarAccess { get; set; }
+
     /// <summary>Levé quand un compte est connecté ou déconnecté.</summary>
     public event Action? AccountsChanged;
 
     public MailCredentials Credentials { get; }
 
-    public bool IsConnected(MailProvider provider) => GetRefreshToken(provider) is not null;
+    public bool IsConnected(MailProvider provider) => provider == MailProvider.Imap
+        ? !string.IsNullOrEmpty(Credentials.ImapPassword)
+        : GetRefreshToken(provider) is not null;
+
+    /// <summary>Vérifie les identifiants IMAP puis les garde. Renvoie null en cas de succès, sinon un message d'erreur.</summary>
+    public async Task<string?> ConnectImapAsync(string address, string password, string host, CancellationToken cancellationToken = default)
+    {
+        var server = string.IsNullOrWhiteSpace(host) ? ImapClient.GuessHost(address) : host.Trim();
+        if (string.IsNullOrWhiteSpace(address) || string.IsNullOrEmpty(password))
+        {
+            return Loc.T("Indiquez l'adresse et le mot de passe d'application.");
+        }
+        if (server is null)
+        {
+            return Loc.T("Serveur inconnu : indiquez-le (imap.exemple.fr).");
+        }
+        try
+        {
+            using var client = await ImapConnector(server, address.Trim(), password, cancellationToken);
+        }
+        catch (ImapException ex)
+        {
+            return Loc.T(ex.Message);
+        }
+        catch (Exception ex) when (ex is IOException or SocketException or System.Security.Authentication.AuthenticationException or OperationCanceledException)
+        {
+            return Loc.T("Serveur injoignable. Vérifiez son nom et le réseau.");
+        }
+
+        Credentials.ImapHost = server;
+        Credentials.ImapAddress = address.Trim();
+        Credentials.ImapPassword = password;
+        Save();
+        AccountsChanged?.Invoke();
+        return null;
+    }
+
+    /// <summary>Les rendez-vous d'aujourd'hui et de demain pour ce compte. IMAP n'a pas d'agenda.</summary>
+    public async Task<CalendarResult> GetCalendarAsync(MailProvider provider, DateTime nowUtc)
+    {
+        if (provider == MailProvider.Imap)
+        {
+            return new CalendarResult([]);
+        }
+        try
+        {
+            var token = await GetAccessTokenAsync(provider);
+            if (token is null)
+            {
+                return new CalendarResult([], NeedsPermission: true);
+            }
+            var today = nowUtc.ToLocalTime().Date;
+            var from = Uri.EscapeDataString(today.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+            var to = Uri.EscapeDataString(today.AddDays(2).ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+            if (provider.IsGmail())
+            {
+                var json = await GetBodyAsync($"{GoogleCalendarApi}?singleEvents=true&orderBy=startTime&maxResults=10&timeMin={from}&timeMax={to}", token);
+                return new CalendarResult(CalendarEvents.ParseGoogle(json));
+            }
+            var graph = await GetBodyAsync($"{GraphApi}/calendarView?startDateTime={from}&endDateTime={to}&$top=10&$orderby=start/dateTime&$select=id,subject,start,isAllDay,onlineMeeting,webLink", token, utcTimes: true);
+            return new CalendarResult(CalendarEvents.ParseGraph(graph));
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
+        {
+            return new CalendarResult([], NeedsPermission: true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
+        {
+            return new CalendarResult([], HasFailed: true);
+        }
+    }
+
+    private async Task<ImapClient> OpenImapAsync(CancellationToken cancellationToken) =>
+        await ImapConnector(Credentials.ImapHost ?? string.Empty, Credentials.ImapAddress ?? string.Empty, Credentials.ImapPassword ?? string.Empty, cancellationToken);
+
+    private async Task<MailSummary> GetImapSummaryAsync()
+    {
+        using var timeout = new CancellationTokenSource(_http.Timeout);
+        try
+        {
+            using var client = await OpenImapAsync(timeout.Token);
+            return await client.ReadSummaryAsync(MaxItems, timeout.Token);
+        }
+        catch (ImapException ex) when (ex.Message == ImapClient.LoginRefused)
+        {
+            return new MailSummary(0, [], Loc.T("Accès refusé : reconnectez le compte"), NeedsReconnect: true);
+        }
+        catch (Exception ex) when (ex is ImapException or IOException or SocketException or System.Security.Authentication.AuthenticationException or OperationCanceledException or FormatException)
+        {
+            AppLog.Write(ex);
+            return new MailSummary(0, [], Loc.T("Lecture impossible pour le moment"));
+        }
+    }
+
+    private async Task<string?> RunImapAsync(Func<ImapClient, CancellationToken, Task> action, string failure)
+    {
+        using var timeout = new CancellationTokenSource(_http.Timeout);
+        try
+        {
+            using var client = await OpenImapAsync(timeout.Token);
+            await action(client, timeout.Token);
+            return null;
+        }
+        catch (Exception ex) when (ex is ImapException or IOException or SocketException or System.Security.Authentication.AuthenticationException or OperationCanceledException)
+        {
+            AppLog.Write(ex);
+            return failure;
+        }
+    }
 
     public void SaveClientCredentials(string outlookId, string gmailId, string gmailSecret)
     {
@@ -110,6 +233,13 @@ internal sealed class MailService
 
     public void Disconnect(MailProvider provider)
     {
+        if (provider == MailProvider.Imap)
+        {
+            Credentials.ImapPassword = null;
+            Save();
+            AccountsChanged?.Invoke();
+            return;
+        }
         SetRefreshToken(provider, null);
         _accessTokens.Remove(provider);
         if (provider.IsGmail())
@@ -124,12 +254,16 @@ internal sealed class MailService
     /// <summary>Met le message à la corbeille. Renvoie null en cas de succès, sinon un message d'erreur.</summary>
     public async Task<string?> TrashAsync(MailProvider provider, string messageId)
     {
+        if (provider == MailProvider.Imap)
+        {
+            return await RunImapAsync((client, token) => client.MoveToTrashAsync(messageId, token), Loc.T("Suppression impossible"));
+        }
         try
         {
             var token = await GetAccessTokenAsync(provider);
             if (token is null)
             {
-                return "Reconnexion nécessaire (Réglages)";
+                return Loc.T("Reconnexion nécessaire (Réglages)");
             }
 
             var id = Uri.EscapeDataString(messageId);
@@ -144,25 +278,29 @@ internal sealed class MailService
             using var response = await _http.SendAsync(request);
             if (await IsAccessDeniedAsync(provider, response))
             {
-                return "Reconnectez le compte pour autoriser la suppression";
+                return Loc.T("Reconnectez le compte pour autoriser la suppression");
             }
-            return response.IsSuccessStatusCode ? null : "Suppression impossible";
+            return response.IsSuccessStatusCode ? null : Loc.T("Suppression impossible");
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
         {
-            return "Suppression impossible pour le moment";
+            return Loc.T("Suppression impossible pour le moment");
         }
     }
 
     /// <summary>Marque le message comme lu. Renvoie null en cas de succès, sinon un message d'erreur.</summary>
     public async Task<string?> MarkAsReadAsync(MailProvider provider, string messageId)
     {
+        if (provider == MailProvider.Imap)
+        {
+            return await RunImapAsync((client, token) => client.MarkAsReadAsync(messageId, token), Loc.T("Action impossible"));
+        }
         try
         {
             var token = await GetAccessTokenAsync(provider);
             if (token is null)
             {
-                return "Reconnexion nécessaire (Réglages)";
+                return Loc.T("Reconnexion nécessaire (Réglages)");
             }
 
             var id = Uri.EscapeDataString(messageId);
@@ -180,13 +318,13 @@ internal sealed class MailService
             using var response = await _http.SendAsync(request);
             if (await IsAccessDeniedAsync(provider, response))
             {
-                return "Reconnectez le compte pour autoriser cette action";
+                return Loc.T("Reconnectez le compte pour autoriser cette action");
             }
-            return response.IsSuccessStatusCode ? null : "Action impossible";
+            return response.IsSuccessStatusCode ? null : Loc.T("Action impossible");
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
         {
-            return "Action impossible pour le moment";
+            return Loc.T("Action impossible pour le moment");
         }
     }
 
@@ -235,11 +373,11 @@ internal sealed class MailService
         var clientId = provider.IsGmail() ? Credentials.GmailClientId : Credentials.OutlookClientId;
         if (string.IsNullOrEmpty(clientId))
         {
-            return "Indiquez d'abord l'identifiant.";
+            return Loc.T("Indiquez d'abord l'identifiant.");
         }
         if (provider.IsGmail() && string.IsNullOrEmpty(Credentials.GmailClientSecret))
         {
-            return "Indiquez aussi le code secret.";
+            return Loc.T("Indiquez aussi le code secret.");
         }
 
         try
@@ -251,7 +389,7 @@ internal sealed class MailService
                 _accessTokens.Remove(provider);
                 _gmailAddresses.Remove(provider);
                 Save();
-                return "Ce compte Gmail est déjà connecté. Choisissez-en un autre.";
+                return Loc.T("Ce compte Gmail est déjà connecté. Choisissez-en un autre.");
             }
             if (error is null)
             {
@@ -261,12 +399,16 @@ internal sealed class MailService
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or HttpListenerException or InvalidOperationException or Win32Exception)
         {
-            return "Connexion impossible. Vérifiez l'identifiant et le réseau.";
+            return Loc.T("Connexion impossible. Vérifiez l'identifiant et le réseau.");
         }
     }
 
     public async Task<MailSummary> GetSummaryAsync(MailProvider provider)
     {
+        if (provider == MailProvider.Imap)
+        {
+            return await GetImapSummaryAsync();
+        }
         try
         {
             try
@@ -283,12 +425,12 @@ internal sealed class MailService
         catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             _accessTokens.Remove(provider);
-            return new MailSummary(0, [], "Accès refusé : reconnectez le compte", NeedsReconnect: true);
+            return new MailSummary(0, [], Loc.T("Accès refusé : reconnectez le compte"), NeedsReconnect: true);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
         {
             AppLog.Write(ex);
-            return new MailSummary(0, [], "Lecture impossible pour le moment");
+            return new MailSummary(0, [], Loc.T("Lecture impossible pour le moment"));
         }
     }
 
@@ -328,7 +470,7 @@ internal sealed class MailService
         var token = await GetAccessTokenAsync(provider);
         if (token is null)
         {
-            return new MailSummary(0, [], "Reconnexion nécessaire (Réglages)", NeedsReconnect: true);
+            return new MailSummary(0, [], Loc.T("Reconnexion nécessaire (Réglages)"), NeedsReconnect: true);
         }
         return provider.IsGmail() ? await GetGmailSummaryAsync(provider, token) : await GetOutlookSummaryAsync(token);
     }
@@ -359,9 +501,11 @@ internal sealed class MailService
 
         var parameters = $"client_id={Uri.EscapeDataString(clientId)}&response_type=code&redirect_uri={Uri.EscapeDataString(redirectUri)}"
             + $"&state={state}&code_challenge={challenge}&code_challenge_method=S256";
+        var outlookScope = RequestCalendarAccess ? $"{OutlookScope} {OutlookCalendarScope}" : OutlookScope;
+        var gmailScope = RequestCalendarAccess ? $"{GmailScope} {GoogleCalendarScope}" : GmailScope;
         var url = provider.IsGmail()
-            ? $"{GmailAuthorizeUrl}?{parameters}&scope={Uri.EscapeDataString(GmailScope)}&access_type=offline&prompt=select_account%20consent"
-            : $"{OutlookAuthorizeUrl}?{parameters}&scope={Uri.EscapeDataString(OutlookScope)}&prompt=select_account";
+            ? $"{GmailAuthorizeUrl}?{parameters}&scope={Uri.EscapeDataString(gmailScope)}&access_type=offline&prompt=select_account%20consent"
+            : $"{OutlookAuthorizeUrl}?{parameters}&scope={Uri.EscapeDataString(outlookScope)}&prompt=select_account";
 
         using var listener = new HttpListener();
         listener.Prefixes.Add(redirectUri);
@@ -371,12 +515,12 @@ internal sealed class MailService
         _ = pending.ContinueWith(task => task.Exception, TaskContinuationOptions.OnlyOnFaulted);
         if (!BrowserOpener(url))
         {
-            return "Ouverture du navigateur impossible.";
+            return Loc.T("Ouverture du navigateur impossible.");
         }
 
         if (await Task.WhenAny(pending, Task.Delay(SignInTimeout, cancellationToken)) != pending)
         {
-            return cancellationToken.IsCancellationRequested ? "Connexion annulée." : "Délai dépassé : connexion annulée.";
+            return cancellationToken.IsCancellationRequested ? Loc.T("Connexion annulée.") : Loc.T("Délai dépassé : connexion annulée.");
         }
 
         var context = await pending;
@@ -385,7 +529,7 @@ internal sealed class MailService
         await RespondAsync(context, isValid);
         if (!isValid)
         {
-            return "Connexion refusée ou annulée.";
+            return Loc.T("Connexion refusée ou annulée.");
         }
 
         var form = new Dictionary<string, string>
@@ -402,21 +546,21 @@ internal sealed class MailService
         }
         else
         {
-            form["scope"] = OutlookScope;
+            form["scope"] = outlookScope;
         }
 
         using var response = await _http.PostAsync(TokenUrl(provider), new FormUrlEncodedContent(form));
         if (!response.IsSuccessStatusCode)
         {
-            return "Le service a refusé la connexion. Vérifiez les identifiants.";
+            return Loc.T("Le service a refusé la connexion. Vérifiez les identifiants.");
         }
         StoreTokens(provider, await response.Content.ReadAsStringAsync());
-        return IsConnected(provider) ? null : "Le service n'a pas accordé d'accès durable.";
+        return IsConnected(provider) ? null : Loc.T("Le service n'a pas accordé d'accès durable.");
     }
 
     private static async Task RespondAsync(HttpListenerContext context, bool isValid)
     {
-        var message = isValid ? "Connexion réussie. Vous pouvez fermer cet onglet." : "Connexion annulée. Vous pouvez fermer cet onglet.";
+        var message = isValid ? Loc.T("Connexion réussie. Vous pouvez fermer cet onglet.") : Loc.T("Connexion annulée. Vous pouvez fermer cet onglet.");
         var body = Encoding.UTF8.GetBytes($"<!doctype html><html lang=\"fr\"><meta charset=\"utf-8\"><title>Ilot</title><body style=\"font-family:sans-serif;text-align:center;margin-top:20vh\"><h2>{message}</h2></body></html>");
         context.Response.ContentType = "text/html; charset=utf-8";
         context.Response.ContentLength64 = body.Length;
@@ -445,10 +589,7 @@ internal sealed class MailService
         {
             form["client_secret"] = Credentials.GmailClientSecret ?? string.Empty;
         }
-        else
-        {
-            form["scope"] = OutlookScope;
-        }
+        // Pas de portée pour Outlook : sans elle, il redonne celles du compte, avec ou sans agenda selon sa connexion.
 
         using var response = await _http.PostAsync(TokenUrl(provider), new FormUrlEncodedContent(form));
         if (response.StatusCode == HttpStatusCode.BadRequest)
@@ -519,7 +660,7 @@ internal sealed class MailService
             var value = header.GetProperty("value").GetString();
             if (string.Equals(header.GetProperty("name").GetString(), "From", StringComparison.OrdinalIgnoreCase))
             {
-                sender = CleanSender(value);
+                sender = MailHeaders.CleanSender(value);
             }
             else if (string.Equals(header.GetProperty("name").GetString(), "Subject", StringComparison.OrdinalIgnoreCase))
             {
@@ -559,10 +700,16 @@ internal sealed class MailService
         return new MailSummary(unread, items, null);
     }
 
-    private async Task<JsonDocument> GetJsonAsync(string url, string token)
+    private async Task<JsonDocument> GetJsonAsync(string url, string token) => JsonDocument.Parse(await GetBodyAsync(url, token));
+
+    private async Task<string> GetBodyAsync(string url, string token, bool utcTimes = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (utcTimes)
+        {
+            request.Headers.TryAddWithoutValidation("Prefer", "outlook.timezone=\"UTC\"");
+        }
         using var response = await _http.SendAsync(request);
         var body = await response.Content.ReadAsStringAsync();
         if (response.StatusCode == HttpStatusCode.Forbidden && IsRateLimitBody(body))
@@ -570,19 +717,7 @@ internal sealed class MailService
             throw new HttpRequestException("Limite de débit atteinte", null, HttpStatusCode.TooManyRequests);
         }
         response.EnsureSuccessStatusCode();
-        return JsonDocument.Parse(body);
-    }
-
-    // "Jeanne Martin <jeanne@exemple.fr>" devient "Jeanne Martin".
-    private static string? CleanSender(string? from)
-    {
-        if (from is null)
-        {
-            return null;
-        }
-        var bracket = from.IndexOf('<');
-        var name = bracket > 0 ? from[..bracket] : from;
-        return name.Trim().Trim('"');
+        return body;
     }
 
     private static string TokenUrl(MailProvider provider) => provider.IsGmail() ? GmailTokenUrl : OutlookTokenUrl;

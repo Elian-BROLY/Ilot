@@ -1,0 +1,16 @@
+<UserControl x:Class="Ilot.Widgets.FilesWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <TextBlock x:Name="EmptyText"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Text="Glissez un fichier sur la capsule pour le garder ici, puis reprenez-le où vous voulez." />
+        <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Hidden" Visibility="Collapsed">
+            <StackPanel x:Name="Items" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

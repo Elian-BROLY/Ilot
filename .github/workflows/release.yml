@@ -1,4 +1,4 @@
-# Publier une version : git tag v1.5.0, puis git push origin v1.5.0.
+# Publier une version : git tag v1.6.0, puis git push origin v1.6.0.
 # Le tag doit correspondre à <Version> dans Ilot.csproj.
 name: Release
 

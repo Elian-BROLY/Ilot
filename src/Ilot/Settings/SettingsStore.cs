@@ -14,8 +14,10 @@ internal static class PageIds
     public const string Note = "note";
     public const string AppVolume = "appvolume";
     public const string SystemStats = "systemstats";
+    public const string Calendar = "calendar";
+    public const string Files = "files";
 
-    public static readonly string[] All = [Media, Weather, Mail, Audio, AppVolume, Timer, Note, SystemStats];
+    public static readonly string[] All = [Media, Calendar, Weather, Mail, Audio, AppVolume, Timer, Note, Files, SystemStats];
 }
 
 internal sealed class PageEntry
@@ -41,9 +43,34 @@ internal sealed class AppSettings
     public double HorizontalPosition { get; set; } = 0.5;
     public bool HideInFullscreen { get; set; } = true;
     public bool TintEnabled { get; set; } = true;
-    public string? City { get; set; } = "Strasbourg";
-    public double? Latitude { get; set; } = 48.58392;
-    public double? Longitude { get; set; } = 7.74553;
+    public string? City { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    /// <summary>Null : fichier écrit avant l'assistant de premier lancement, qui n'a donc pas à s'ouvrir.</summary>
+    public bool? SetupCompleted { get; set; }
+    /// <summary>« fr », « en », ou vide pour suivre la langue de Windows.</summary>
+    public string Language { get; set; } = string.Empty;
+    /// <summary>À l'ouverture du panneau, afficher le minuteur s'il tourne, sinon le lecteur si la musique joue.</summary>
+    public bool ContextualPageEnabled { get; set; } = true;
+    /// <summary>La molette règle le volume sur la capsule fermée et sur la ligne du bas du panneau.</summary>
+    public bool WheelVolumeEnabled { get; set; } = true;
+    /// <summary>Applications dont les notifications ne s'affichent plus en bannière.</summary>
+    public List<string> MutedNotificationApps { get; set; } = [];
+    /// <summary>Applications déjà vues, pour pouvoir les couper dans les réglages : identifiant et nom affiché.</summary>
+    public Dictionary<string, string> KnownNotificationApps { get; set; } = [];
+    public bool QuietHoursEnabled { get; set; }
+    /// <summary>Début et fin des heures de silence, en minutes depuis minuit.</summary>
+    public int QuietHoursStart { get; set; } = 22 * 60;
+    public int QuietHoursEnd { get; set; } = 7 * 60;
+    /// <summary>Raccourcis modifiés, par action. Une action absente garde son raccourci d'origine.</summary>
+    public Dictionary<string, string> Hotkeys { get; set; } = [];
+    /// <summary>Faux : le minuteur Pomodoro ne touche pas à la musique.</summary>
+    public bool PomodoroControlsMusic { get; set; } = true;
+    /// <summary>Vrai : la ligne du casque s'affiche dans le panneau.</summary>
+    public bool HeadsetRowEnabled { get; set; } = true;
+    /// <summary>Nom du casque à afficher. Vide : les AirPods s'il y en a, sinon le premier casque appairé.</summary>
+    public string HeadsetName { get; set; } = string.Empty;
+    public bool ImapEnabled { get; set; } = true;
     public bool GmailEnabled { get; set; } = true;
     public bool Gmail2Enabled { get; set; } = true;
     public bool OutlookEnabled { get; set; } = true;
@@ -60,7 +87,7 @@ internal sealed class AppSettings
     public bool FollowSystemTheme { get; set; }
     public string AccentName { get; set; } = "Bleu";
     /// <summary>Fragment de l'identifiant du lecteur à afficher en priorité (« deezer »). Vide : le lecteur désigné par Windows.</summary>
-    public string PreferredPlayer { get; set; } = "deezer";
+    public string PreferredPlayer { get; set; } = string.Empty;
     /// <summary>Vrai : si le lecteur préféré est en pause alors qu'un autre joue, c'est l'autre qui s'affiche.</summary>
     public bool ShowPlayingOverPausedPreferred { get; set; }
     public bool TrackBannerEnabled { get; set; } = true;
@@ -83,9 +110,17 @@ internal sealed class SettingsStore
 
     public SettingsStore()
     {
+        IsFirstRun = !File.Exists(_path);
         Current = Load();
         Normalize(Current);
+        if (IsFirstRun)
+        {
+            Current.SetupCompleted = false;
+        }
     }
+
+    /// <summary>Aucun fichier de réglages au démarrage : c'est une nouvelle installation.</summary>
+    public bool IsFirstRun { get; }
 
     public event Action? Changed;
 
@@ -137,6 +172,14 @@ internal sealed class SettingsStore
     internal static void Normalize(AppSettings settings)
     {
         // Un fichier modifié à la main peut contenir "Pages": null.
+        settings.MutedNotificationApps ??= [];
+        settings.KnownNotificationApps ??= [];
+        settings.Hotkeys ??= [];
+        settings.HeadsetName ??= string.Empty;
+        settings.Language ??= string.Empty;
+        settings.PreferredPlayer ??= string.Empty;
+        settings.QuietHoursStart = Math.Clamp(settings.QuietHoursStart, 0, 24 * 60 - 1);
+        settings.QuietHoursEnd = Math.Clamp(settings.QuietHoursEnd, 0, 24 * 60 - 1);
         settings.Pages = (settings.Pages ?? [])
             .Where(page => PageIds.All.Contains(page.Id))
             .DistinctBy(page => page.Id)

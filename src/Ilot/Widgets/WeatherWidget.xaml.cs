@@ -78,7 +78,7 @@ public partial class WeatherWidget : UserControl
         if (settings.Latitude is not { } latitude || settings.Longitude is not { } longitude)
         {
             ReportPanel.Visibility = Visibility.Collapsed;
-            ShowMessage("Indiquez votre ville dans les réglages\n(clic droit sur l'icône Ilot)");
+            ShowMessage(Loc.T("Indiquez votre ville dans les réglages\n(clic droit sur l'icône Ilot)"));
             return;
         }
         if (_isLoading)
@@ -91,7 +91,7 @@ public partial class WeatherWidget : UserControl
         if (_lastSuccessUtc == DateTime.MinValue)
         {
             ReportPanel.Visibility = Visibility.Collapsed;
-            ShowMessage("Chargement de la météo…");
+            ShowMessage(Loc.T("Chargement de la météo…"));
         }
 
         var report = await WeatherService.FetchAsync(latitude, longitude);
@@ -110,7 +110,7 @@ public partial class WeatherWidget : UserControl
         }
         else if (_lastSuccessUtc == DateTime.MinValue)
         {
-            ShowMessage("Météo indisponible pour le moment");
+            ShowMessage(Loc.T("Météo indisponible pour le moment"));
         }
         // Sinon, on garde les dernières données affichées.
     }
@@ -141,7 +141,7 @@ public partial class WeatherWidget : UserControl
     private FrameworkElement CreateDayColumn(DailyForecast day)
     {
         var column = new StackPanel { Width = 52 };
-        column.Children.Add(CreateCenteredText(DayNames[(int)day.Date.DayOfWeek], 11, "TextSecondaryBrush"));
+        column.Children.Add(CreateCenteredText(Loc.T(DayNames[(int)day.Date.DayOfWeek]), 11, "TextSecondaryBrush"));
         column.Children.Add(new Path
         {
             Width = 24,

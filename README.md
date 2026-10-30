@@ -27,6 +27,8 @@ La désinstallation retire le démarrage automatique, les identifiants mail, les
 | Cliquer sur la capsule | Verrouille le panneau ouvert ; un second clic le déverrouille |
 | Glisser la capsule latéralement | La déplace le long du bord haut de l'écran |
 | Molette, ou points à droite du panneau | Change de page |
+| Molette sur la capsule fermée ou la ligne du bas du panneau | Règle le volume (à désactiver dans les réglages) |
+| Glisser un fichier sur la capsule | Le garde dans la page Dépôt de fichiers |
 | Barre de progression du lecteur | Déplace la position de lecture, si l'application le permet |
 | Bouton Connecter / Déconnecter de la ligne AirPods | Connecte ou déconnecte les AirPods déjà appairés à Windows |
 | Clic sur l'icône de la zone de notification | Ouvre les réglages, comme relancer l'application |
@@ -39,19 +41,23 @@ La désinstallation retire le démarrage automatique, les identifiants mail, les
 | `Ctrl + Alt + Maj + Espace` | Lecture ou pause |
 | `Ctrl + Alt + Maj + →` ou `←` | Morceau suivant ou précédent |
 
-Les réglages sont enregistrés dans `%APPDATA%\Ilot\settings.json`. La météo affiche Strasbourg par défaut ; la ville se change dans les réglages et son nom est envoyé au service [Open-Meteo](https://open-meteo.com/).
+Ces raccourcis se changent dans les réglages. Au premier lancement, un assistant explique les gestes et demande la langue, la ville, le lecteur et les pages. Les réglages sont enregistrés dans `%APPDATA%\Ilot\settings.json`. Le nom de la ville est envoyé au service [Open-Meteo](https://open-meteo.com/).
 
 ## Pages et indicateurs
 
-- **Lecteur** : le lecteur par défaut (Deezer, à changer dans les réglages) est affiché dès qu'il est ouvert, même en pause, sauf si l'option « afficher celui qui joue » est cochée ; sinon, le lecteur désigné par Windows. Si plusieurs lecteurs sont ouverts, le bouton à droite des commandes passe au suivant, et ce choix tient jusqu'à la fermeture du lecteur choisi ou au redémarrage de l'application. Windows n'indique que l'application : YouTube, ou Deezer ouvert dans un site web, apparaît sous le nom du navigateur (Chrome, Edge…), et seul Deezer installé en application est reconnu comme lecteur par défaut.
+- **Agenda** : les rendez-vous d'aujourd'hui et de demain, un décompte dans la capsule et un rappel 5 minutes avant, avec un clic pour rejoindre la visio. Il lit Google Agenda ou Outlook en lecture seule, après une nouvelle connexion du compte. Page masquée : aucune requête.
+- **Dépôt de fichiers** : glissez un fichier sur la capsule, reprenez-le où vous voulez. Seul son chemin est gardé, jusqu'à la fermeture de l'application.
+- **Lecteur** : le lecteur par défaut (à choisir dans les réglages) est affiché dès qu'il est ouvert, même en pause, sauf si l'option « afficher celui qui joue » est cochée ; sinon, le lecteur désigné par Windows. Si plusieurs lecteurs sont ouverts, le bouton à droite des commandes passe au suivant, et ce choix tient jusqu'à la fermeture du lecteur choisi ou au redémarrage de l'application. Windows n'indique que l'application : YouTube, ou Deezer ouvert dans un site web, apparaît sous le nom du navigateur (Chrome, Edge…), et seul Deezer installé en application est reconnu comme lecteur par défaut.
 - **Changement de morceau** : une petite bannière affiche le titre et l'artiste quand le morceau suivant du lecteur par défaut commence. Windows et Deezer ne donnent pas la file d'attente : le titre ne peut pas être connu à l'avance.
 - **Volume par application** : sur la sortie par défaut, jusqu'à 4 applications.
 - **Système** : CPU, mémoire et débit réseau, mis à jour seulement quand la page est affichée.
 - **Mode concentration** : pendant un minuteur (pause comprise), les notifications et mails ne s'affichent plus en bannière, et un compte s'affiche à la fin. Les alertes de batterie et d'AirPods restent actives. Pour que rien n'apparaisse non plus en bas à droite, gardez « Ne pas déranger » activé (`Win + N`).
 - **Écrans** : la capsule s'affiche sur l'écran choisi dans les réglages, ou passe sur celui où se trouve la souris.
 - **Sortie audio** : un clic bascule la sortie par défaut. Le bouton casque de la ligne du volume y mène directement. Windows n'ayant pas d'API publique pour ça, l'application utilise l'interface non documentée `IPolicyConfig`.
-- **Minuteur** : 5, 25 ou 45 min ; le décompte reste visible dans la capsule compacte, à la place de l'égaliseur, et continue après un redémarrage de l'application.
-- **Note rapide** : enregistrée automatiquement, en clair, dans `%APPDATA%\Ilot\note.txt`.
+- **Minuteur** : 5, 25 ou 45 min, ou Pomodoro (25 min de travail, 5 min de pause, 15 min toutes les 4 séances, avec la musique en pause pendant les pauses) ; le décompte reste visible dans la capsule compacte, à la place de l'égaliseur, et continue après un redémarrage de l'application.
+- **Note rapide** : jusqu'à 5 notes, avec des cases à cocher, enregistrées automatiquement, en clair, dans `%APPDATA%\Ilot\note.txt`, `note2.txt`…
+- **Casque** : la ligne du bas affiche les AirPods ou un autre casque Bluetooth, au choix ou masquée. Un casque autre que des AirPods n'a qu'une jauge, si Windows connaît sa batterie.
+- **Langue** : français ou anglais.
 - **Micro et caméra** : point orange pour le micro, vert pour la caméra.
 - **Alertes batterie** : PC à 20 % et 10 %, AirPods à 20 % (contrôle toutes les 5 min tant qu'ils sont connectés), chargeur branché ou débranché.
 - **Température** : affichée à côté de l'heure en mode compact, sauf si les autres indicateurs ont besoin de la place.
@@ -60,16 +66,20 @@ Tout se désactive dans les réglages.
 
 ## Notifications Windows
 
-Les notifications de Windows s'affichent dans une bannière de la capsule, l'une après l'autre (sauf en plein écran). Pour ne plus les voir aussi en bas à droite, activez « Ne pas déranger » (`Win + N`) : Windows ne permet pas à une application de le faire elle-même. Un clic sur la bannière ouvre l'application : Windows ne donne accès ni aux boutons de la notification, ni à son champ de réponse.
+Les notifications de Windows s'affichent dans une bannière de la capsule, l'une après l'autre (sauf en plein écran). Dans les réglages, chaque application peut être coupée, et des heures de silence masquent notifications et mails sur une plage. Pour ne plus les voir aussi en bas à droite, activez « Ne pas déranger » (`Win + N`) : Windows ne permet pas à une application de le faire elle-même. Un clic sur la bannière ouvre l'application : Windows ne donne accès ni aux boutons de la notification, ni à son champ de réponse.
 
 ## Mails
 
 Dans les réglages, onglet **Mails** : collez vos identifiants OAuth puis cliquez sur **Connecter**. Les cases **Afficher Outlook** et **Afficher Gmail** masquent un compte de la capsule sans le déconnecter.
 
+### Le plus simple : IMAP
+
+Sans projet Google ou Azure : indiquez votre adresse et un mot de passe d'application créé dans la sécurité de votre compte (Gmail, Yahoo, iCloud…). Rien n'est supprimé définitivement : la corbeille déplace le mail, et échoue si le serveur n'en a pas. Microsoft n'accepte plus cette méthode pour Outlook, et l'agenda demande une connexion Google ou Outlook.
+
 ### Créer ses identifiants Google
 
 1. Sur la [console Google Cloud](https://console.cloud.google.com/), créez un projet.
-2. Dans **API et services > Bibliothèque**, activez l'**API Gmail**.
+2. Dans **API et services > Bibliothèque**, activez l'**API Gmail**, et l'**API Google Agenda** si vous voulez la page Agenda.
 3. Dans **Écran de consentement OAuth**, choisissez le type **Externe**, ajoutez votre adresse comme utilisateur test, puis passez l'application **en production**. En mode test, Google retire l'autorisation au bout de 7 jours. En production, un écran d'avertissement s'affiche à la connexion, car l'application n'est pas vérifiée par Google.
 4. Dans **Identifiants**, créez un **ID client OAuth** de type **Application de bureau**.
 5. Collez l'ID client et le code secret dans l'onglet **Mails**.

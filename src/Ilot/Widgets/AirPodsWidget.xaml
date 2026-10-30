@@ -46,7 +46,14 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Path Width="22" Height="22"
+            <TextBlock x:Name="HeadsetGlyph"
+                       VerticalAlignment="Center"
+                       FontFamily="{StaticResource IconFont}" FontSize="17"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       Text="&#xE7F6;"
+                       Visibility="Collapsed" />
+            <Path x:Name="AirPodsIcon"
+                  Width="22" Height="22"
                   Data="{StaticResource AirPodsGeometry}"
                   Fill="{DynamicResource TextPrimaryBrush}"
                   Stretch="Uniform" />

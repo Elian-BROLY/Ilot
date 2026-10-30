@@ -57,7 +57,8 @@ internal static class ThemeService
         SetBrush("AccentBrush", accent.Color);
     }
 
-    private static string ThemeKey(AppSettings settings) => $"{IsLight(settings)}|{settings.AccentName}";
+    // La langue s'y ajoute : comme les couleurs, les textes déjà à l'écran ne changent qu'au redémarrage.
+    private static string ThemeKey(AppSettings settings) => $"{IsLight(settings)}|{settings.AccentName}|{Loc.Resolve(settings.Language)}";
 
     private static void SetBrush(string key, Color color) =>
         Application.Current.Resources[key] = new SolidColorBrush(color);

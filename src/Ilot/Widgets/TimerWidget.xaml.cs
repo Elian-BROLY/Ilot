@@ -20,6 +20,7 @@ public partial class TimerWidget : UserControl
         {
             Presets.Children.Add(CreatePreset(minutes));
         }
+        Presets.Children.Add(CreatePomodoroButton());
         Service.Changed += Render;
     }
 
@@ -46,7 +47,7 @@ public partial class TimerWidget : UserControl
             Foreground = (Brush)FindResource("TextPrimaryBrush"),
             Content = label,
         };
-        AutomationProperties.SetName(button, "Minuteur " + label);
+        AutomationProperties.SetName(button, Loc.T("Minuteur ") + label);
         button.Click += (_, _) =>
         {
             TypingFinished?.Invoke(); // Le champ a pu être en cours de saisie : il disparaît au lancement.
@@ -55,16 +56,41 @@ public partial class TimerWidget : UserControl
         return button;
     }
 
+    private Button CreatePomodoroButton()
+    {
+        var button = new Button
+        {
+            Width = 72,
+            Height = 30,
+            Margin = new Thickness(0, 0, 6, 0),
+            FontSize = 11,
+            Style = (Style)FindResource("PillRowButton"),
+            Background = (Brush)FindResource("SurfaceBrush"),
+            Foreground = (Brush)FindResource("TextPrimaryBrush"),
+            Content = "Pomodoro",
+            ToolTip = Loc.T("25 min de travail, 5 min de pause, et 15 min toutes les 4 séances"),
+        };
+        AutomationProperties.SetName(button, "Pomodoro");
+        button.Click += (_, _) =>
+        {
+            TypingFinished?.Invoke();
+            Service.StartPomodoro();
+        };
+        return button;
+    }
+
     private void Render()
     {
         var isActive = Service.IsActive;
-        RemainingText.Text = isActive ? TimerService.Format(Service.Remaining) : "Minuteur";
+        RemainingText.Text = isActive ? TimerService.Format(Service.Remaining) : Loc.T("Minuteur");
         StatusText.Text = !isActive
-            ? "Choisissez une durée"
-            : Service.IsPaused ? "En pause" : App.Settings.Current.FocusWithTimerEnabled ? "Concentration : notifications masquées" : "En cours";
+            ? Loc.T("Choisissez une durée")
+            : Service.IsPaused ? Loc.T("En pause")
+            : Service.PomodoroStep is { } step ? (PomodoroCycle.IsBreak(step) ? Loc.T("Pause · séance {0}", PomodoroCycle.Session(step)) : Loc.T("Travail · séance {0}", PomodoroCycle.Session(step)))
+            : App.Settings.Current.FocusWithTimerEnabled ? Loc.T("Concentration : notifications masquées") : Loc.T("En cours");
         SetupPanel.Visibility = isActive ? Visibility.Collapsed : Visibility.Visible;
         RunningPanel.Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
-        PauseButton.Content = Service.IsPaused ? "Reprendre" : "Pause";
+        PauseButton.Content = Service.IsPaused ? Loc.T("Reprendre") : Loc.T("Pause");
     }
 
     private void StartCustom()
@@ -77,7 +103,7 @@ public partial class TimerWidget : UserControl
         }
         else
         {
-            StatusText.Text = "Entre 1 et 1440 minutes";
+            StatusText.Text = Loc.T("Entre 1 et 1440 minutes");
         }
     }
 

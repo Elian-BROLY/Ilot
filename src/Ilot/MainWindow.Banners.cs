@@ -13,6 +13,7 @@ public partial class MainWindow
     private const double TrackBannerHeight = 46;
     private const double BannerMarkSize = 32;
     private const double TrackBannerMarkSize = 30;
+    private const string HeadsetGlyph = "";
     private const string MusicGlyph = "";
     private const string UpdateGlyph = "";
     private static readonly TimeSpan TrackBannerDuration = TimeSpan.FromSeconds(3.5);
@@ -41,11 +42,16 @@ public partial class MainWindow
 
     private void ShowBanner(bool isConnected)
     {
-        SetBannerContent(AirPodsPanel.DeviceName, isConnected ? "Connectés" : "Déconnectés", click: null);
+        var isAirPods = AirPodsPanel.IsAirPods;
+        var status = isAirPods ? (isConnected ? Loc.T("Connectés") : Loc.T("Déconnectés")) : (isConnected ? Loc.T("Connecté") : Loc.T("Déconnecté"));
+        SetBannerContent(AirPodsPanel.DeviceName, status, click: null, HeadsetGlyph, isGlyph: true);
         BannerRings.Update(isConnected ? AirPodsPanel.Battery : null);
         BannerRings.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
-        BannerAirPodsIcon.Visibility = Visibility.Visible;
-        BannerMailMark.Visibility = Visibility.Collapsed;
+        if (isAirPods)
+        {
+            BannerAirPodsIcon.Visibility = Visibility.Visible;
+            BannerMailMark.Visibility = Visibility.Collapsed;
+        }
         AirPodsPanel.IsBannerWatching = isConnected;
         PresentBanner(AirPodsBannerDuration);
     }
@@ -93,7 +99,7 @@ public partial class MainWindow
     {
         if (!IsInFocusMode)
         {
-            ShowInfoBanner(UpdateGlyph, $"Version {version} prête", "Cliquez pour redémarrer, ou elle s'installera au prochain lancement", App.Updates.ApplyAndRestart);
+            ShowInfoBanner(UpdateGlyph, Loc.T("Version {0} prête", version), Loc.T("Cliquez pour redémarrer, ou elle s'installera au prochain lancement"), App.Updates.ApplyAndRestart);
         }
     }
 
@@ -125,8 +131,20 @@ public partial class MainWindow
 
     // --- Bannière de notification Windows ---
 
+    private bool IsQuietTime => _settings.Current.QuietHoursEnabled && NotificationFilter.IsQuietTime(
+        TimeOnly.FromDateTime(DateTime.Now), _settings.Current.QuietHoursStart, _settings.Current.QuietHoursEnd);
+
     private void OnSystemNotificationReceived(SystemNotification notification)
     {
+        // Retient l'application pour pouvoir la couper dans les réglages, même si sa notification n'est pas affichée.
+        if (notification.AppId.Length > 0 && !_settings.Current.KnownNotificationApps.ContainsKey(notification.AppId))
+        {
+            _settings.UpdateSilently(settings => settings.KnownNotificationApps[notification.AppId] = notification.AppName);
+        }
+        if (NotificationFilter.IsMuted(notification.AppId, _settings.Current.MutedNotificationApps) || IsQuietTime)
+        {
+            return;
+        }
         if (IsInFocusMode)
         {
             _missedDuringFocus++;
@@ -158,7 +176,7 @@ public partial class MainWindow
             return;
         }
         // Panneau ouvert : la page Mails et le compteur affichent déjà l'information.
-        if (_settings.Current.MailBannerEnabled && !_isExpanded && !_isHiddenForFullscreen)
+        if (_settings.Current.MailBannerEnabled && !_isExpanded && !_isHiddenForFullscreen && !IsQuietTime)
         {
             ShowOrQueueBanner(() => ShowMailBanner(notification));
         }
@@ -171,7 +189,7 @@ public partial class MainWindow
         var url = item.OpenUrl;
         SetBannerContent(
             string.IsNullOrWhiteSpace(item.Sender) ? label : item.Sender,
-            string.IsNullOrWhiteSpace(item.Subject) ? "(sans objet)" : item.Subject,
+            string.IsNullOrWhiteSpace(item.Subject) ? Loc.T("(sans objet)") : item.Subject,
             () =>
             {
                 if (url is not null)

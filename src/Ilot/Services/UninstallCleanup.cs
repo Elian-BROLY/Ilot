@@ -4,12 +4,10 @@ namespace Ilot.Services;
 
 /// <summary>
 /// Ménage à la désinstallation : démarrage automatique, identifiants, réglages et journal.
-/// Seule la note reste : c'est le texte de l'utilisateur, et rien ne le préviendrait de sa perte.
+/// Seules les notes restent : c'est le texte de l'utilisateur, et rien ne le préviendrait de sa perte.
 /// </summary>
 internal static class UninstallCleanup
 {
-    private const string KeptFile = "note.txt";
-
     public static void Run()
     {
         try
@@ -31,7 +29,7 @@ internal static class UninstallCleanup
         }
         foreach (var file in Directory.GetFiles(folder))
         {
-            if (!string.Equals(Path.GetFileName(file), KeptFile, StringComparison.OrdinalIgnoreCase))
+            if (!NoteStore.IsNoteFile(Path.GetFileName(file)))
             {
                 try
                 {

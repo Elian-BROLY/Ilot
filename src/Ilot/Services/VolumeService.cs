@@ -26,6 +26,18 @@ internal sealed class VolumeService
         return success;
     }
 
+    /// <summary>Change le volume d'un écart, et renvoie le nouveau niveau. Null s'il n'y a pas de sortie audio.</summary>
+    public float? ChangeLevel(float delta)
+    {
+        if (!TryRead(out var level, out _))
+        {
+            return null;
+        }
+        var next = Math.Clamp(level + delta, 0f, 1f);
+        SetLevel(next);
+        return next;
+    }
+
     public void SetLevel(float level) =>
         WithEndpoint(endpoint => endpoint.SetMasterVolumeLevelScalar(Math.Clamp(level, 0f, 1f), IntPtr.Zero));
 

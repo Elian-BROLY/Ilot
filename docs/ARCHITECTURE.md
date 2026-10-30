@@ -23,10 +23,11 @@ tests/Ilot.Tests/       Tests des services
 - **Rendu logiciel :** il réduit fortement la mémoire utilisée (voir `App.xaml.cs`).
 - **Translucidité simulée :** un vrai effet Acrylic ou Mica est incompatible avec une fenêtre à transparence par pixel et des coins de capsule. Le panneau utilise donc un fond sombre légèrement translucide, sans flou.
 - **Écriture des fichiers :** les réglages, la note et les identifiants passent par `AtomicFile`, pour qu'une coupure de courant laisse l'ancienne version intacte.
+- **Traduction :** le texte français sert de clé (`Loc.T("...")` et XAML), et `LocEnglish.cs` donne l'anglais. Un test échoue si un texte n'y figure pas.
 
 ## Publier une version
 
 1. Augmentez `<Version>` dans `Ilot.csproj` et poussez le commit.
-2. Lancez `git tag v1.5.0`, puis `git push origin v1.5.0`, avec le même numéro.
+2. Lancez `git tag v1.6.0`, puis `git push origin v1.6.0`, avec le même numéro.
 
 GitHub Actions lance les tests, construit l'installateur et publie la Release. Les copies installées la trouvent en moins de 6 heures.

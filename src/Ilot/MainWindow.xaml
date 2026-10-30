@@ -43,7 +43,11 @@
                 MouseMove="Capsule_MouseMove"
                 MouseLeftButtonUp="Capsule_MouseLeftButtonUp"
                 LostMouseCapture="Capsule_LostMouseCapture"
-                PreviewMouseWheel="Capsule_PreviewMouseWheel">
+                PreviewMouseWheel="Capsule_PreviewMouseWheel"
+                AllowDrop="True"
+                DragEnter="Capsule_DragEnter"
+                DragLeave="Capsule_DragLeave"
+                Drop="Capsule_Drop">
             <Border.Background>
                 <SolidColorBrush x:Name="CapsuleFill" Color="#0D0D0D" />
             </Border.Background>
@@ -202,6 +206,8 @@
                             <widgets:NoteWidget x:Name="NotePanel" Visibility="Collapsed" />
                             <widgets:AppVolumeWidget x:Name="AppVolumePanel" Visibility="Collapsed" />
                             <widgets:SystemStatsWidget x:Name="SystemStatsPanel" Visibility="Collapsed" />
+                            <widgets:CalendarWidget x:Name="CalendarPanel" Visibility="Collapsed" />
+                            <widgets:FilesWidget x:Name="FilesPanel" Visibility="Collapsed" />
                         </Grid>
                         <StackPanel x:Name="PageDots"
                                     Grid.Column="1"
@@ -215,7 +221,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <widgets:SystemWidget />
+                            <widgets:SystemWidget x:Name="SystemPanel" />
                             <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
                                 <Ellipse x:Name="ExpandedMicDot"
                                          Width="7" Height="7"

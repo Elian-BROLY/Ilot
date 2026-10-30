@@ -43,7 +43,7 @@ public partial class AudioWidget : UserControl
         catch (Exception ex)
         {
             AppLog.Write(ex);
-            ShowMessage("Sorties audio indisponibles");
+            ShowMessage(Loc.T("Sorties audio indisponibles"));
             return;
         }
 
@@ -99,7 +99,7 @@ public partial class AudioWidget : UserControl
             ToolTip = output.FullName,
             Content = content,
         };
-        AutomationProperties.SetName(button, "Sortie " + output.Name);
+        AutomationProperties.SetName(button, Loc.T("Sortie {0}", output.Name));
         button.Click += async (_, _) => await SelectAsync(output);
         return button;
     }
@@ -127,7 +127,7 @@ public partial class AudioWidget : UserControl
         }
         else
         {
-            ShowMessage("Windows a refusé de changer de sortie");
+            ShowMessage(Loc.T("Windows a refusé de changer de sortie"));
         }
         await RefreshAsync();
     }

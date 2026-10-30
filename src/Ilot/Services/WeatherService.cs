@@ -84,14 +84,14 @@ internal static class WeatherService
     /// <summary>Libellé d'un code météo WMO.</summary>
     public static string Describe(int code) => code switch
     {
-        0 => "Ciel dégagé",
-        1 or 2 => "Éclaircies",
-        3 => "Couvert",
-        45 or 48 => "Brouillard",
-        >= 51 and <= 57 => "Bruine",
-        >= 61 and <= 67 or >= 80 and <= 82 => "Pluie",
-        >= 71 and <= 77 or 85 or 86 => "Neige",
-        >= 95 => "Orage",
+        0 => Loc.T("Ciel dégagé"),
+        1 or 2 => Loc.T("Éclaircies"),
+        3 => Loc.T("Couvert"),
+        45 or 48 => Loc.T("Brouillard"),
+        >= 51 and <= 57 => Loc.T("Bruine"),
+        >= 61 and <= 67 or >= 80 and <= 82 => Loc.T("Pluie"),
+        >= 71 and <= 77 or 85 or 86 => Loc.T("Neige"),
+        >= 95 => Loc.T("Orage"),
         _ => "—",
     };
 }

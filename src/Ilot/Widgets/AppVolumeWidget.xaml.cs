@@ -102,7 +102,7 @@ public partial class AppVolumeWidget : UserControl
             VerticalAlignment = VerticalAlignment.Center,
             Style = (Style)FindResource("ThinSlider"),
         };
-        AutomationProperties.SetName(slider, "Volume " + app.Key);
+        AutomationProperties.SetName(slider, Loc.T("Volume ") + app.Key);
         var percent = new TextBlock
         {
             FontSize = 11,

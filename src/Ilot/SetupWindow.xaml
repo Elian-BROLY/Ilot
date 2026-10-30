@@ -1,0 +1,74 @@
+<Window x:Class="Ilot.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bienvenue dans Ilot"
+        Width="480" Height="470"
+        ResizeMode="NoResize"
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        FontFamily="{StaticResource UiFont}"
+        FontSize="13"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="Line" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="24,20">
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <Button x:Name="NextButton" DockPanel.Dock="Right" MinWidth="96" Margin="8,0,0,0" IsDefault="True" Content="Suivant" Click="Next_Click" />
+            <Button x:Name="BackButton" DockPanel.Dock="Right" MinWidth="96" Content="Retour" Visibility="Collapsed" Click="Back_Click" />
+            <TextBlock x:Name="StepText" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <Grid>
+            <StackPanel x:Name="WelcomeStep">
+                <TextBlock Style="{StaticResource Heading}" Text="Comment ça marche" />
+                <TextBlock Style="{StaticResource Line}" Text="La capsule se trouve en haut de l'écran. Passez la souris dessus pour l'ouvrir." />
+                <TextBlock Style="{StaticResource Line}" Text="Cliquez dessus pour la garder ouverte, et encore une fois pour la libérer." />
+                <TextBlock Style="{StaticResource Line}" Text="Faites tourner la molette pour changer de page, et glissez la capsule pour la déplacer le long du bord." />
+                <TextBlock Style="{StaticResource Line}" Text="Tout se règle plus tard : cliquez sur l'icône d'Ilot, près de l'horloge de Windows." />
+                <TextBlock Margin="0,12,0,4" FontWeight="SemiBold" Text="Langue" />
+                <ComboBox x:Name="LanguageCombo" AutomationProperties.Name="Langue" SelectionChanged="Language_Changed">
+                    <ComboBoxItem Content="Suivre Windows" Tag="" />
+                    <ComboBoxItem Content="Français" Tag="fr" />
+                    <ComboBoxItem Content="English" Tag="en" />
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel x:Name="PlaceStep" Visibility="Collapsed">
+                <TextBlock Style="{StaticResource Heading}" Text="Votre ville et votre musique" />
+                <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="Ville, pour la météo" />
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Margin="8,0,0,0" Content="Chercher" Click="SearchCity_Click" />
+                    <TextBox x:Name="CityBox" VerticalContentAlignment="Center" AutomationProperties.Name="Ville" />
+                </DockPanel>
+                <ComboBox x:Name="CityCombo" Margin="0,8,0,0" DisplayMemberPath="Label" AutomationProperties.Name="Ville exacte" Visibility="Collapsed" />
+                <TextBlock x:Name="CityStatusText" Margin="0,6,0,0" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Text="Le nom de la ville est envoyé au service Open-Meteo. Vous pouvez laisser ce champ vide." />
+                <TextBlock Margin="0,16,0,4" FontWeight="SemiBold" Text="Lecteur de musique" />
+                <ComboBox x:Name="PlayerCombo" AutomationProperties.Name="Lecteur par défaut">
+                    <ComboBoxItem Content="Aucun : suivre Windows" Tag="" />
+                    <ComboBoxItem Content="Deezer" Tag="deezer" />
+                    <ComboBoxItem Content="Spotify" Tag="spotify" />
+                    <ComboBoxItem Content="Apple Music" Tag="applemusic" />
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel x:Name="PagesStep" Visibility="Collapsed">
+                <TextBlock Style="{StaticResource Heading}" Text="Vos pages" />
+                <TextBlock Style="{StaticResource Line}" Text="Gardez ce qui vous sert. Les comptes mail et l'agenda se connectent ensuite dans les réglages, onglet Mails." />
+                <ScrollViewer Height="230" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="PagesList" />
+                </ScrollViewer>
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</Window>

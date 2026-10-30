@@ -68,8 +68,8 @@ internal sealed class TrayIcon : IDisposable
     private void ShowMenu()
     {
         var menu = NativeMethods.CreatePopupMenu();
-        NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, new UIntPtr(SettingsCommand), "Réglages…");
-        NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, new UIntPtr(QuitCommand), "Quitter");
+        NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, new UIntPtr(SettingsCommand), Loc.T("Réglages…"));
+        NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, new UIntPtr(QuitCommand), Loc.T("Quitter"));
 
         NativeMethods.GetCursorPos(out var cursor);
         // Sans ces deux appels, le menu ne se ferme pas quand on clique ailleurs.

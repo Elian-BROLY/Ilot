@@ -73,13 +73,37 @@
                                       Checked="Options_Changed" Unchecked="Options_Changed" />
                             <CheckBox x:Name="GlobalHotkeyCheck" Content="Activer les raccourcis clavier"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
-                            <TextBlock Style="{StaticResource Hint}"
-                                       Margin="28,0,0,4"
-                                       Text="Ctrl + Alt + N : ouvrir ou réduire. Ctrl + Alt + ↑ ou ↓ : changer de page, panneau ouvert. Ctrl + Alt + Maj + Espace : lecture ou pause. Ctrl + Alt + Maj + → ou ← : morceau suivant ou précédent." />
                             <TextBlock x:Name="HotkeyStatusText" Style="{StaticResource Hint}"
                                        Margin="28,0,0,0"
                                        Text="Au moins un de ces raccourcis est déjà utilisé par une autre application."
                                        Visibility="Collapsed" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Raccourcis clavier" />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Margin="0,0,0,6"
+                                       Text="Cliquez dans un champ puis appuyez sur la combinaison voulue, avec Ctrl, Alt ou Win." />
+                            <StackPanel x:Name="HotkeysList" />
+                            <DockPanel Margin="0,6,0,0">
+                                <Button DockPanel.Dock="Right" Content="Rétablir" Click="ResetHotkeys_Click" />
+                                <TextBlock x:Name="HotkeysConflictText" Style="{StaticResource Hint}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Casque" />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <CheckBox x:Name="HeadsetRowCheck" Content="Afficher la ligne du casque dans le panneau"
+                                      Checked="Headset_Changed" Unchecked="Headset_Changed" />
+                            <ComboBox x:Name="HeadsetCombo"
+                                      Margin="0,8,0,0"
+                                      HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="Casque affiché"
+                                      SelectionChanged="Headset_Changed" />
                         </StackPanel>
                     </Border>
 
@@ -123,7 +147,16 @@
                                 <RowDefinition Height="40" />
                                 <RowDefinition Height="40" />
                                 <RowDefinition Height="40" />
+                                <RowDefinition Height="40" />
                             </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Langue" />
+                            <ComboBox x:Name="LanguageCombo" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="Langue"
+                                      SelectionChanged="Language_Changed">
+                                <ComboBoxItem Content="Suivre Windows" Tag="" />
+                                <ComboBoxItem Content="Français" Tag="fr" />
+                                <ComboBoxItem Content="English" Tag="en" />
+                            </ComboBox>
                             <TextBlock VerticalAlignment="Center" Text="Thème" />
                             <ComboBox x:Name="ThemeCombo" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="Thème"
@@ -155,6 +188,12 @@
                             <CheckBox x:Name="CompactTemperatureCheck" Content="Afficher la température à côté de l'heure"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                             <CheckBox x:Name="PrivacyIndicatorsCheck" Content="Signaler l'usage du micro et de la caméra"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="ContextualPageCheck" Content="À l'ouverture, afficher le minuteur s'il tourne, sinon le lecteur si la musique joue"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="WheelVolumeCheck" Content="Régler le volume à la molette sur la capsule fermée et sur la ligne du bas du panneau"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="PomodoroMusicCheck" Content="Pomodoro : mettre la musique en pause pendant les pauses"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                         </StackPanel>
                     </Border>
@@ -263,6 +302,36 @@
                         </StackPanel>
                     </Border>
 
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Applications" />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Margin="0,0,0,6"
+                                       Text="Décochez une application pour ne plus voir ses notifications dans la capsule. Une application apparaît ici à sa première notification." />
+                            <StackPanel x:Name="NotificationAppsList" />
+                            <TextBlock x:Name="NoNotificationAppsText" Style="{StaticResource Hint}" Text="Aucune notification reçue pour l'instant." />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Heures de silence" />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <CheckBox x:Name="QuietHoursCheck" Content="Ne pas afficher les notifications et les mails sur cette plage"
+                                      Checked="QuietHours_Changed" Unchecked="QuietHours_Changed" />
+                            <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center" Text="De" />
+                                <TextBox x:Name="QuietStartBox" Width="64" Margin="8,0,8,0" TextAlignment="Center"
+                                         AutomationProperties.Name="Début du silence"
+                                         LostFocus="QuietHours_Changed" />
+                                <TextBlock VerticalAlignment="Center" Text="à" />
+                                <TextBox x:Name="QuietEndBox" Width="64" Margin="8,0,8,0" TextAlignment="Center"
+                                         AutomationProperties.Name="Fin du silence"
+                                         LostFocus="QuietHours_Changed" />
+                                <TextBlock x:Name="QuietStatusText" Style="{StaticResource Hint}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                     <TextBlock Style="{StaticResource SectionTitle}" Text="Alertes de la capsule" />
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
@@ -322,6 +391,29 @@
                                         Click="Gmail2Button_Click" />
                                 <TextBlock x:Name="Gmail2StatusText" Style="{StaticResource Hint}" Margin="0,0,10,0" VerticalAlignment="Center"
                                            Text="Mêmes identifiants que le premier compte : choisissez l'autre adresse à la connexion." />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Autre compte (IMAP)" />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Margin="0,0,0,8"
+                                       Text="Le plus simple : aucun projet Google ou Azure à créer. Créez un mot de passe d'application dans la sécurité de votre compte (Gmail, Yahoo, iCloud…). Il reste chiffré sur ce PC. Outlook n'accepte plus cette méthode." />
+                            <CheckBox x:Name="ImapEnabledCheck" FontWeight="SemiBold" Content="Afficher ce compte"
+                                      Checked="MailEnabled_Changed" Unchecked="MailEnabled_Changed" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,2" Text="Adresse mail" />
+                            <TextBox x:Name="ImapAddressBox" AutomationProperties.Name="Adresse IMAP" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,2" Text="Mot de passe d'application" />
+                            <PasswordBox x:Name="ImapPasswordBox" AutomationProperties.Name="Mot de passe IMAP" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,2" Text="Serveur (facultatif pour les services courants)" />
+                            <TextBox x:Name="ImapHostBox" AutomationProperties.Name="Serveur IMAP" />
+                            <DockPanel Margin="0,6,0,0">
+                                <Button x:Name="ImapButton" DockPanel.Dock="Right" MinWidth="96"
+                                        AutomationProperties.Name="Compte IMAP"
+                                        Click="ImapButton_Click" />
+                                <TextBlock x:Name="ImapStatusText" Style="{StaticResource Hint}" Margin="0,0,10,0" VerticalAlignment="Center" />
                             </DockPanel>
                         </StackPanel>
                     </Border>

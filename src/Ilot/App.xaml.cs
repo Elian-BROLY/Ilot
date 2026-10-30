@@ -54,12 +54,17 @@ public partial class App : Application
             // Une fenêtre aussi petite n'a pas besoin du GPU, et éviter Direct3D économise beaucoup de mémoire.
             RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
+            Loc.SetLanguage(Settings.Current.Language);
             ThemeService.ApplyAtStartup(Settings.Current);
             AutostartService.RepointToInstalledCopy();
             _tray = new TrayIcon(ShowSettings, Shutdown);
             _mainWindow = new MainWindow();
             _mainWindow.Show();
-            if (e.Args.Contains(ReopenSettingsArgument))
+            if (Settings.Current.SetupCompleted == false)
+            {
+                new SetupWindow().Show(); // Prioritaire : un changement de langue depuis l'assistant y revient.
+            }
+            else if (e.Args.Contains(ReopenSettingsArgument))
             {
                 ShowSettings();
             }
@@ -68,7 +73,7 @@ public partial class App : Application
         {
             // Sans capsule, le processus resterait invisible et l'instance unique empêcherait toute relance.
             AppLog.Write(ex, "Démarrage");
-            MessageBox.Show("Ilot n'a pas pu démarrer. Le détail de l'erreur se trouve dans %APPDATA%\\Ilot\\app.log.",
+            MessageBox.Show(Loc.T("Ilot n'a pas pu démarrer. Le détail de l'erreur se trouve dans %APPDATA%\\Ilot\\app.log."),
                 "Ilot", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }

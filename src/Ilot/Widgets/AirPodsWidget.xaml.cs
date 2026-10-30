@@ -32,6 +32,8 @@ public partial class AirPodsWidget : UserControl
     private Request _request;
     private string? _transientMessage;
     private bool _isBannerWatching;
+    private bool _wasRowEnabled = App.Settings.Current.HeadsetRowEnabled;
+    private string _lastHeadsetName = App.Settings.Current.HeadsetName;
 
     public AirPodsWidget()
     {
@@ -54,7 +56,7 @@ public partial class AirPodsWidget : UserControl
         _requestTimeout.Tick += (_, _) =>
         {
             _requestTimeout.Stop();
-            ShowMessage(_request == Request.Connecting ? "Introuvables : boîtier ouvert ?" : "Déconnexion impossible");
+            ShowMessage(_request == Request.Connecting ? (IsAirPods ? Loc.T("Introuvables : boîtier ouvert ?") : Loc.T("Introuvable : est-il allumé ?")) : Loc.T("Déconnexion impossible"));
             _request = Request.None;
             Render();
         };
@@ -91,6 +93,11 @@ public partial class AirPodsWidget : UserControl
 
     internal AirPodsBattery? Battery { get; private set; }
 
+    /// <summary>Tous les casques appairés, pour le choix dans les réglages.</summary>
+    internal IReadOnlyList<BluetoothAudioDevice> Devices { get; private set; } = [];
+
+    public bool IsAirPods => _device is { IsAirPods: true };
+
     public bool IsAvailable => _device is not null;
 
     public bool IsConnected => _device?.IsConnected ?? false;
@@ -110,22 +117,61 @@ public partial class AirPodsWidget : UserControl
     // Appelée par MainWindow : le panneau replié au démarrage ne déclencherait pas Loaded.
     internal async Task InitializeAsync()
     {
+        App.Settings.Changed += OnSettingsChanged;
         await _service.StartListeningAsync();
         await RefreshAsync();
+    }
+
+    private void OnSettingsChanged()
+    {
+        var settings = App.Settings.Current;
+        if (settings.HeadsetRowEnabled != _wasRowEnabled || settings.HeadsetName != _lastHeadsetName)
+        {
+            _wasRowEnabled = settings.HeadsetRowEnabled;
+            _lastHeadsetName = settings.HeadsetName;
+            _refreshDebounce.Stop();
+            _refreshDebounce.Start();
+        }
+    }
+
+    // Un casque autre que des AirPods n'a qu'un niveau, lu auprès de Windows, affiché comme une seule jauge.
+    private async Task ReadGenericBatteryAsync()
+    {
+        if (_device is not { IsAirPods: false, IsConnected: true } device)
+        {
+            return;
+        }
+        if (await BluetoothAudioService.ReadBatteryAsync(device.Name) is { } level)
+        {
+            Battery = new AirPodsBattery(level, null, null, false, false, false);
+            Rings.Update(Battery);
+            BatteryChanged?.Invoke();
+        }
     }
 
     private async Task RefreshAsync()
     {
         var previous = _device;
-        _device = await BluetoothAudioService.FindAirPodsAsync();
-        _batteryMonitor.ProductId = _device?.ProductId;
+        Devices = await BluetoothAudioService.FindDevicesAsync();
+        var settings = App.Settings.Current;
+        _device = settings.HeadsetRowEnabled ? BluetoothAudioService.Choose(Devices, settings.HeadsetName) : null;
+        _batteryMonitor.ProductId = _device is { IsAirPods: true } ? _device.ProductId : null;
+        HeadsetGlyph.Visibility = _device is { IsAirPods: false } ? Visibility.Visible : Visibility.Collapsed;
+        AirPodsIcon.Visibility = _device is { IsAirPods: false } ? Visibility.Collapsed : Visibility.Visible;
 
         if ((previous is null) != (_device is null))
         {
             AvailabilityChanged?.Invoke();
         }
 
-        var hasChanged = previous is not null && _device is not null && previous.IsConnected != _device.IsConnected;
+        // Un autre casque choisi dans les réglages n'est pas une connexion : pas de bannière.
+        var isSameDevice = previous?.ContainerId == _device?.ContainerId;
+        if (!isSameDevice)
+        {
+            Battery = null;
+            Rings.Update(null);
+        }
+        var hasChanged = isSameDevice && previous is not null && _device is not null && previous.IsConnected != _device.IsConnected;
         if (hasChanged)
         {
             _request = Request.None;
@@ -150,18 +196,18 @@ public partial class AirPodsWidget : UserControl
         NameText.Text = device.Name;
         StatusText.Text = _transientMessage ?? _request switch
         {
-            Request.Connecting => "Connexion en cours…",
-            Request.Disconnecting => "Déconnexion en cours…",
-            _ => device.IsConnected ? "Connectés" : "Non connectés",
+            Request.Connecting => Loc.T("Connexion en cours…"),
+            Request.Disconnecting => Loc.T("Déconnexion en cours…"),
+            _ => device.IsAirPods ? (device.IsConnected ? Loc.T("Connectés") : Loc.T("Non connectés")) : (device.IsConnected ? Loc.T("Connecté") : Loc.T("Non connecté")),
         };
 
         var isBusy = _request != Request.None;
         ActionButton.IsEnabled = !isBusy;
         ActionButton.Content = _request switch
         {
-            Request.Connecting => "Connexion…",
-            Request.Disconnecting => "Déconnexion…",
-            _ => device.IsConnected ? "Déconnecter" : "Connecter",
+            Request.Connecting => Loc.T("Connexion…"),
+            Request.Disconnecting => Loc.T("Déconnexion…"),
+            _ => device.IsConnected ? Loc.T("Déconnecter") : Loc.T("Connecter"),
         };
 
         var isPrimary = !device.IsConnected && !isBusy;
@@ -190,7 +236,7 @@ public partial class AirPodsWidget : UserControl
     private void UpdateBatteryWatching()
     {
         // L'écoute BLE consomme de la batterie : uniquement si le résultat est affiché, ou pour un bref contrôle.
-        if (_device is not null && (IsVisible || _isBannerWatching || _isPeriodicChecking))
+        if (_device is { IsAirPods: true } && (IsVisible || _isBannerWatching || _isPeriodicChecking))
         {
             _batteryMonitor.Start();
         }
@@ -212,6 +258,7 @@ public partial class AirPodsWidget : UserControl
 
     private void BeginPeriodicCheck()
     {
+        _ = ReadGenericBatteryAsync();
         _isPeriodicChecking = true;
         _periodicCheckStopTimer.Stop();
         _periodicCheckStopTimer.Start();
@@ -236,7 +283,7 @@ public partial class AirPodsWidget : UserControl
         {
             _requestTimeout.Stop();
             _request = Request.None;
-            ShowMessage("Bluetooth indisponible");
+            ShowMessage(Loc.T("Bluetooth indisponible"));
             Render();
         }
     }

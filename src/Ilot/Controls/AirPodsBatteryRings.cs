@@ -7,9 +7,9 @@ namespace Ilot.Controls;
 /// <summary>Les trois jauges : gauche, droite et boîtier. Chacune se masque si son niveau est inconnu.</summary>
 internal sealed class AirPodsBatteryRings : StackPanel
 {
-    private readonly BatteryRing _left = new("G", "Écouteur gauche");
-    private readonly BatteryRing _right = new("D", "Écouteur droit") { Margin = new Thickness(5, 0, 0, 0) };
-    private readonly BatteryRing _case = new("B", "Boîtier") { Margin = new Thickness(5, 0, 0, 0) };
+    private readonly BatteryRing _left = new(Loc.T("G"), Loc.T("Écouteur gauche"));
+    private readonly BatteryRing _right = new(Loc.T("D"), Loc.T("Écouteur droit")) { Margin = new Thickness(5, 0, 0, 0) };
+    private readonly BatteryRing _case = new(Loc.T("B"), Loc.T("Boîtier")) { Margin = new Thickness(5, 0, 0, 0) };
 
     public AirPodsBatteryRings()
     {

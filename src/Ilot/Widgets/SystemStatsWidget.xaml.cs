@@ -35,11 +35,11 @@ public partial class SystemStatsWidget : UserControl
         CpuBar.Width = CpuTrack.ActualWidth * stats.CpuPercent / 100;
         CpuText.Text = stats.CpuPercent.ToString("0", CultureInfo.InvariantCulture) + " %";
         MemoryBar.Width = MemoryTrack.ActualWidth * stats.MemoryPercent / 100;
-        MemoryText.Text = $"{stats.MemoryUsedGb.ToString("0.0", CultureInfo.InvariantCulture)} / {stats.MemoryTotalGb.ToString("0", CultureInfo.InvariantCulture)} Go";
+        MemoryText.Text = $"{stats.MemoryUsedGb.ToString("0.0", CultureInfo.InvariantCulture)} / {stats.MemoryTotalGb.ToString("0", CultureInfo.InvariantCulture)} {Loc.T("Go")}";
         NetworkText.Text = $"↓ {FormatSpeed(stats.DownloadBytesPerSecond)}   ↑ {FormatSpeed(stats.UploadBytesPerSecond)}";
     }
 
     private static string FormatSpeed(double bytesPerSecond) => bytesPerSecond >= 1024 * 1024
-        ? (bytesPerSecond / (1024 * 1024)).ToString("0.0", CultureInfo.InvariantCulture) + " Mo/s"
-        : (bytesPerSecond / 1024).ToString("0", CultureInfo.InvariantCulture) + " Ko/s";
+        ? (bytesPerSecond / (1024 * 1024)).ToString("0.0", CultureInfo.InvariantCulture) + Loc.T(" Mo/s")
+        : (bytesPerSecond / 1024).ToString("0", CultureInfo.InvariantCulture) + Loc.T(" Ko/s");
 }

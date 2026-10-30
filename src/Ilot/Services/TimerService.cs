@@ -3,7 +3,7 @@ using System.Windows.Threading;
 namespace Ilot.Services;
 
 /// <summary>L'état d'un minuteur à enregistrer. PausedRemainingSeconds n'est renseigné qu'en pause.</summary>
-internal sealed record TimerSnapshot(DateTime EndUtc, double DurationSeconds, double? PausedRemainingSeconds);
+internal sealed record TimerSnapshot(DateTime EndUtc, double DurationSeconds, double? PausedRemainingSeconds, int? PomodoroStep = null);
 
 /// <summary>Minuteur basé sur l'heure de fin : il reste juste même après une mise en veille du PC ou un redémarrage de l'application.</summary>
 internal sealed class TimerService
@@ -35,14 +35,30 @@ internal sealed class TimerService
 
     /// <summary>Null si aucun minuteur n'est en cours.</summary>
     public TimerSnapshot? Snapshot => IsActive
-        ? new TimerSnapshot(_endUtc, Duration.TotalSeconds, IsPaused ? _remainingWhenPaused.TotalSeconds : null)
+        ? new TimerSnapshot(_endUtc, Duration.TotalSeconds, IsPaused ? _remainingWhenPaused.TotalSeconds : null, PomodoroStep)
         : null;
+
+    /// <summary>Levé quand une étape du Pomodoro se termine et que la suivante commence, avec le numéro de cette dernière.</summary>
+    public event Action<int>? PomodoroAdvanced;
+
+    /// <summary>Null hors Pomodoro. Voir <see cref="PomodoroCycle"/>.</summary>
+    public int? PomodoroStep { get; private set; }
+
+    public bool IsPomodoroBreak => PomodoroStep is { } step && PomodoroCycle.IsBreak(step);
+
+    public void StartPomodoro()
+    {
+        Start(PomodoroCycle.Duration(0));
+        PomodoroStep = 0;
+        StateChanged?.Invoke();
+    }
 
     /// <summary>Reprend un minuteur enregistré. S'il a expiré entre-temps, Completed sera levé au premier passage.</summary>
     public void Restore(TimerSnapshot snapshot)
     {
         Duration = TimeSpan.FromSeconds(snapshot.DurationSeconds);
         _endUtc = snapshot.EndUtc;
+        PomodoroStep = snapshot.PomodoroStep;
         if (snapshot.PausedRemainingSeconds is { } remaining)
         {
             _remainingWhenPaused = TimeSpan.FromSeconds(remaining);
@@ -70,6 +86,7 @@ internal sealed class TimerService
 
     public void Start(TimeSpan duration)
     {
+        PomodoroStep = null;
         Duration = duration;
         IsPaused = false;
         _endUtc = DateTime.UtcNow + duration;
@@ -100,6 +117,7 @@ internal sealed class TimerService
     {
         _timer.Stop();
         IsPaused = false;
+        PomodoroStep = null;
         Changed?.Invoke();
         StateChanged?.Invoke();
         Stopped?.Invoke();
@@ -114,11 +132,28 @@ internal sealed class TimerService
             : $"{seconds / 60}:{seconds % 60:00}";
     }
 
+    /// <summary>Passe à l'étape suivante. Le Pomodoro continue jusqu'à ce que l'utilisateur l'arrête.</summary>
+    internal void AdvancePomodoro()
+    {
+        var next = (PomodoroStep ?? -1) + 1;
+        PomodoroStep = next;
+        Duration = PomodoroCycle.Duration(next);
+        _endUtc = DateTime.UtcNow + Duration;
+        Changed?.Invoke();
+        StateChanged?.Invoke();
+        PomodoroAdvanced?.Invoke(next);
+    }
+
     private void OnTick()
     {
         if (DateTime.UtcNow < _endUtc)
         {
             Changed?.Invoke();
+            return;
+        }
+        if (PomodoroStep is not null)
+        {
+            AdvancePomodoro();
             return;
         }
         _timer.Stop();

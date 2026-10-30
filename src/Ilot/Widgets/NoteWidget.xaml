@@ -10,6 +10,7 @@
                        IsHitTestVisible="False"
                        Text="Écrivez une note…" />
             <TextBox x:Name="NoteBox"
+                     Margin="0,0,0,18"
                      Background="Transparent"
                      BorderThickness="0"
                      CaretBrush="{DynamicResource TextPrimaryBrush}"
@@ -22,6 +23,40 @@
                      PreviewMouseLeftButtonDown="NoteBox_PreviewMouseLeftButtonDown"
                      TextChanged="NoteBox_TextChanged"
                      LostKeyboardFocus="NoteBox_LostKeyboardFocus" />
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Orientation="Horizontal">
+                <Button x:Name="ChecklistButton" Width="18" Height="18" FontSize="10"
+                        Style="{StaticResource IconButton}"
+                        Content="&#xE73A;"
+                        ToolTip="Ajouter ou retirer une case à cocher"
+                        AutomationProperties.Name="Ajouter ou retirer une case à cocher"
+                        Click="Checklist_Click" />
+                <Button x:Name="PreviousButton" Width="18" Height="18" FontSize="9" Margin="6,0,0,0"
+                        Style="{StaticResource IconButton}"
+                        Content="&#xE76B;"
+                        ToolTip="Note précédente"
+                        AutomationProperties.Name="Note précédente"
+                        Click="Previous_Click" />
+                <TextBlock x:Name="PositionText" Margin="2,0,2,0" VerticalAlignment="Center" FontSize="10"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <Button x:Name="NextButton" Width="18" Height="18" FontSize="9"
+                        Style="{StaticResource IconButton}"
+                        Content="&#xE76C;"
+                        ToolTip="Note suivante"
+                        AutomationProperties.Name="Note suivante"
+                        Click="Next_Click" />
+                <Button x:Name="AddButton" Width="18" Height="18" FontSize="9" Margin="4,0,0,0"
+                        Style="{StaticResource IconButton}"
+                        Content="&#xE710;"
+                        ToolTip="Nouvelle note"
+                        AutomationProperties.Name="Nouvelle note"
+                        Click="Add_Click" />
+                <Button x:Name="RemoveButton" Width="18" Height="18" FontSize="9"
+                        Style="{StaticResource IconButton}"
+                        Content="&#xE74D;"
+                        ToolTip="Supprimer cette note"
+                        AutomationProperties.Name="Supprimer cette note"
+                        Click="Remove_Click" />
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

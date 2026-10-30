@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -14,7 +14,8 @@ public partial class MailWidget : UserControl
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(1); // Délai maximal d'affichage d'une bannière.
     private static readonly TimeSpan MinimumRefreshGap = TimeSpan.FromSeconds(30);
     private const int CompactRowCount = 3; // À partir de là, les lignes normales ne tiennent plus dans la page.
-    private static readonly MailProvider[] Providers = [MailProvider.Outlook, MailProvider.Gmail, MailProvider.Gmail2];
+    private const int MaxRowsWithDetails = 3;
+    private static readonly MailProvider[] Providers = [MailProvider.Outlook, MailProvider.Gmail, MailProvider.Gmail2, MailProvider.Imap];
 
     private readonly Dictionary<MailProvider, MailRow> _rows = [];
     private readonly MailListView _list;
@@ -67,6 +68,7 @@ public partial class MailWidget : UserControl
     {
         MailProvider.Gmail => App.Settings.Current.GmailEnabled,
         MailProvider.Gmail2 => App.Settings.Current.Gmail2Enabled && App.Mail.IsConnected(MailProvider.Gmail2),
+        MailProvider.Imap => App.Settings.Current.ImapEnabled && App.Mail.IsConnected(MailProvider.Imap),
         _ => App.Settings.Current.OutlookEnabled,
     };
 
@@ -125,13 +127,13 @@ public partial class MailWidget : UserControl
         MailProvider? listed = readable.Count == 1 ? readable[0] : null;
         Rows.Visibility = listed is null ? Visibility.Visible : Visibility.Collapsed;
         _list.Root.Visibility = listed is null ? Visibility.Collapsed : Visibility.Visible;
-        var isCompact = Providers.Count(IsAccountEnabled) >= CompactRowCount;
+        var enabledCount = Providers.Count(IsAccountEnabled);
 
         foreach (var provider in Providers)
         {
             var isEnabled = IsAccountEnabled(provider);
             anyEnabled |= isEnabled;
-            _rows[provider].SetCompact(isCompact);
+            _rows[provider].SetCompact(enabledCount);
             _rows[provider].Root.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
             if (!isEnabled)
             {
@@ -250,11 +252,11 @@ public partial class MailWidget : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 Visibility = Visibility.Collapsed,
             };
-            _nextButton = CreateRowButton(owner, "", "Mail suivant", $"Mail suivant {_label}");
+            _nextButton = CreateRowButton(owner, "", Loc.T("Mail suivant"), Loc.T("Mail suivant {0}", _label));
             _nextButton.Click += Next_Click;
-            _readButton = CreateRowButton(owner, "", "Marquer comme lu", $"Marquer comme lu {_label}");
+            _readButton = CreateRowButton(owner, "", Loc.T("Marquer comme lu"), Loc.T("Marquer comme lu {0}", _label));
             _readButton.Click += (_, e) => RunActionAsync(e, _readButton, id => App.Mail.MarkAsReadAsync(_provider, id));
-            _trashButton = CreateRowButton(owner, "", "Mettre à la corbeille", $"Supprimer le mail {_label}");
+            _trashButton = CreateRowButton(owner, "", Loc.T("Mettre à la corbeille"), Loc.T("Supprimer le mail {0}", _label));
             _trashButton.Click += (_, e) => RunActionAsync(e, _trashButton, id => App.Mail.TrashAsync(_provider, id));
 
             _countText = new TextBlock
@@ -325,7 +327,7 @@ public partial class MailWidget : UserControl
                     e.Handled = true;
                     if (!App.Mail.OpenInBrowser(url))
                     {
-                        _detailText.Text = "Ouverture du navigateur impossible";
+                        _detailText.Text = Loc.T("Ouverture du navigateur impossible");
                     }
                 }
                 _isPressed = false;
@@ -336,10 +338,12 @@ public partial class MailWidget : UserControl
 
         public FrameworkElement Root => _background;
 
-        public void SetCompact(bool isCompact)
+        public void SetCompact(int accountCount)
         {
-            _background.Height = isCompact ? 33 : 44;
-            _background.Margin = isCompact ? new Thickness(0, 1, 0, 1) : new Thickness(0, 2, 0, 2);
+            // Quatre comptes à la fois ne tiennent qu'avec une seule ligne de texte chacun.
+            _background.Height = accountCount >= MaxRowsWithDetails + 1 ? 25 : accountCount >= CompactRowCount ? 33 : 44;
+            _background.Margin = accountCount >= CompactRowCount ? new Thickness(0, 1, 0, 1) : new Thickness(0, 2, 0, 2);
+            _detailText.Visibility = accountCount > MaxRowsWithDetails ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private MailItem? Current => _index < _items.Count ? _items[_index] : null;
@@ -348,7 +352,7 @@ public partial class MailWidget : UserControl
         {
             _items = [];
             _index = 0;
-            _emptyMessage = "Non connecté : à configurer dans les réglages";
+            _emptyMessage = Loc.T("Non connecté : à configurer dans les réglages");
             _countBadge.Visibility = Visibility.Collapsed;
             Render();
         }
@@ -361,7 +365,7 @@ public partial class MailWidget : UserControl
             var kept = _items.FindIndex(item => item.Id == currentId);
             _index = kept >= 0 ? kept : Math.Min(_index, Math.Max(0, _items.Count - 1));
 
-            _emptyMessage = summary.Error ?? "Aucun message non lu";
+            _emptyMessage = summary.Error ?? Loc.T("Aucun message non lu");
             _background.ToolTip = _items.Count > 0 ? summary.Error : null; // Les derniers mails restent affichés.
             _countBadge.Visibility = summary.Unread > 0 ? Visibility.Visible : Visibility.Collapsed;
             _countText.Text = summary.Unread > 999 ? "999+" : summary.Unread.ToString(CultureInfo.InvariantCulture);
@@ -379,12 +383,12 @@ public partial class MailWidget : UserControl
             else if (!item.IsLoaded)
             {
                 _titleText.Text = _label;
-                _detailText.Text = "Chargement…";
+                _detailText.Text = Loc.T("Chargement…");
             }
             else
             {
                 _titleText.Text = string.IsNullOrWhiteSpace(item.Sender) ? _label : item.Sender;
-                _detailText.Text = string.IsNullOrWhiteSpace(item.Subject) ? "(sans objet)" : item.Subject;
+                _detailText.Text = string.IsNullOrWhiteSpace(item.Subject) ? Loc.T("(sans objet)") : item.Subject;
             }
             _positionText.Text = $"{_index + 1} / {_items.Count}";
             RenderHover();
@@ -424,7 +428,7 @@ public partial class MailWidget : UserControl
                 }
                 else
                 {
-                    _detailText.Text = "Lecture impossible pour le moment";
+                    _detailText.Text = Loc.T("Lecture impossible pour le moment");
                 }
             }
         }

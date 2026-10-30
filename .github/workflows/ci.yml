@@ -13,4 +13,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet test tests/Ilot.Tests/Ilot.Tests.csproj
+      - run: dotnet test tests/Ilot.Tests/Ilot.Tests.csproj --logger trx --results-directory TestResults
+      # Affiche les tests en échec directement sur la page du commit, sans ouvrir le journal.
+      - name: Signaler les tests en échec
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem TestResults -Filter *.trx | ForEach-Object {
+            ([xml](Get-Content $_.FullName)).TestRun.Results.UnitTestResult | Where-Object outcome -eq 'Failed' | ForEach-Object {
+              $message = ($_.Output.ErrorInfo.Message -replace "`r?`n", ' ')
+              "::error title=$($_.testName)::$message"
+            }
+          }

@@ -38,7 +38,7 @@ internal sealed class MailListView
 
         _titleText = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = secondary, VerticalAlignment = VerticalAlignment.Center };
         _positionText = new TextBlock { FontSize = 10, Foreground = secondary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) };
-        _nextPageButton = CreateButton(owner, "", "Mails suivants", 16, 9);
+        _nextPageButton = CreateButton(owner, "", Loc.T("Mails suivants"), 16, 9);
         _nextPageButton.Click += (_, e) =>
         {
             e.Handled = true;
@@ -119,7 +119,7 @@ internal sealed class MailListView
         var label = provider.Label();
         // Les derniers mails restent affichés : l'erreur tient dans l'en-tête.
         _titleText.Text = summary.Error is { } error && _items.Count > 0 ? $"{label} · {error}" : label;
-        _messageText.Text = summary.Error ?? "Aucun message non lu";
+        _messageText.Text = summary.Error ?? Loc.T("Aucun message non lu");
         _countBadge.Visibility = summary.Unread > 0 ? Visibility.Visible : Visibility.Collapsed;
         _countText.Text = summary.Unread > 999 ? "999+" : summary.Unread.ToString(CultureInfo.InvariantCulture);
         Render();
@@ -224,9 +224,9 @@ internal sealed class MailListView
             _hoverBrush = (Brush)owner.FindResource("SurfaceBrush");
             _senderText = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = primary, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
             _subjectText = new TextBlock { FontSize = 11, Foreground = secondary, Margin = new Thickness(8, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
-            _readButton = CreateButton(owner, "", "Marquer comme lu", 20, 10);
+            _readButton = CreateButton(owner, "", Loc.T("Marquer comme lu"), 20, 10);
             _readButton.Click += (_, e) => Run(e, _readButton, App.Mail.MarkAsReadAsync);
-            _trashButton = CreateButton(owner, "", "Mettre à la corbeille", 20, 10);
+            _trashButton = CreateButton(owner, "", Loc.T("Mettre à la corbeille"), 20, 10);
             _trashButton.Click += (_, e) => Run(e, _trashButton, App.Mail.TrashAsync);
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -272,7 +272,7 @@ internal sealed class MailListView
                     e.Handled = true;
                     if (!App.Mail.OpenInBrowser(url))
                     {
-                        _subjectText.Text = "Ouverture du navigateur impossible";
+                        _subjectText.Text = Loc.T("Ouverture du navigateur impossible");
                     }
                 }
                 _isPressed = false;
@@ -292,13 +292,13 @@ internal sealed class MailListView
             }
             if (item.IsLoaded)
             {
-                _senderText.Text = string.IsNullOrWhiteSpace(item.Sender) ? "(inconnu)" : item.Sender;
-                _subjectText.Text = string.IsNullOrWhiteSpace(item.Subject) ? "(sans objet)" : item.Subject;
+                _senderText.Text = string.IsNullOrWhiteSpace(item.Sender) ? Loc.T("(inconnu)") : item.Sender;
+                _subjectText.Text = string.IsNullOrWhiteSpace(item.Subject) ? Loc.T("(sans objet)") : item.Subject;
             }
             else
             {
                 _senderText.Text = string.Empty;
-                _subjectText.Text = hasFailed ? "Lecture impossible pour le moment" : "Chargement…";
+                _subjectText.Text = hasFailed ? Loc.T("Lecture impossible pour le moment") : Loc.T("Chargement…");
             }
             RenderHover();
         }

@@ -37,7 +37,8 @@ public partial class MainWindow : Window
     private static readonly TimeSpan MailBannerDuration = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan MailBannerDurationAfterHover = TimeSpan.FromSeconds(2);
     private const int HotkeyId = 1;
-    private const uint HotkeyVirtualKey = 0x4E; // N
+    private const float WheelVolumeStep = 0.05f;
+    private const int WheelNotch = 120;
     private const int WheelGestureGapMs = 200;
     private const int WheelGestureThreshold = 40; // Un cran de molette vaut 120.
 
@@ -98,10 +99,15 @@ public partial class MainWindow : Window
     private readonly BatteryAlertPolicy _pcBatteryPolicy = new(20, 10);
     private readonly BatteryAlertPolicy _airPodsBatteryPolicy = new(20);
     private readonly ConsecutiveLowReadings _airPodsLowReadings = new(threshold: 20, required: 3);
+    private readonly VolumeService _volume = new();
+    private readonly DispatcherTimer _volumeFeedbackTimer = new() { Interval = TimeSpan.FromSeconds(1.2) };
+    private bool _isDraggingFile;
+    private bool _pausedMusicForBreak;
 
     public MainWindow()
     {
         InitializeComponent();
+        Loc.Translate(this);
         _pageViews = new Dictionary<string, FrameworkElement>
         {
             [PageIds.Media] = MediaPanel,
@@ -112,6 +118,16 @@ public partial class MainWindow : Window
             [PageIds.Note] = NotePanel,
             [PageIds.AppVolume] = AppVolumePanel,
             [PageIds.SystemStats] = SystemStatsPanel,
+            [PageIds.Calendar] = CalendarPanel,
+            [PageIds.Files] = FilesPanel,
+        };
+        CalendarPanel.ReminderDue += OnCalendarReminder;
+        CalendarPanel.CountdownChanged += UpdateCompactIndicators;
+        TimerPanel.Service.PomodoroAdvanced += OnPomodoroAdvanced;
+        _volumeFeedbackTimer.Tick += (_, _) =>
+        {
+            _volumeFeedbackTimer.Stop();
+            ClockText.Text = DateTime.Now.ToString("HH:mm", CultureInfo.InvariantCulture);
         };
 
         _clockTimer.Tick += (_, _) => UpdateClock();
@@ -311,7 +327,7 @@ public partial class MainWindow : Window
         var dot = new Border
         {
             Width = 14,
-            Height = 11, // Toutes les pages actives doivent tenir dans la hauteur du panneau.
+            Height = 10, // Toutes les pages actives doivent tenir dans la hauteur du panneau.
             Background = Brushes.Transparent,
             Tag = id,
             Child = new Ellipse { Width = 5, Height = 5, Fill = (Brush)FindResource("TextPrimaryBrush") },
@@ -363,8 +379,16 @@ public partial class MainWindow : Window
     // En Preview : la zone de texte de la note marquerait sinon l'événement comme traité, même sans rien à faire défiler.
     private void Capsule_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // Sur la capsule fermée et sur la ligne du bas, où se trouve déjà le volume : la molette règle le son.
+        if (_settings.Current.WheelVolumeEnabled && !_isBannerVisible && (!_isExpanded || SystemPanel.IsMouseOver))
+        {
+            ChangeVolumeFromWheel(e.Delta);
+            e.Handled = true;
+            return;
+        }
         if (!_isExpanded || _visiblePages.Count < 2 || _currentPage is null
-            || (_currentPage == PageIds.Note && NotePanel.IsContentScrollable))
+            || (_currentPage == PageIds.Note && NotePanel.IsContentScrollable)
+            || (_currentPage == PageIds.Files && FilesPanel.IsContentScrollable))
         {
             return;
         }
@@ -388,6 +412,63 @@ public partial class MainWindow : Window
         _isWheelGestureConsumed = true;
 
         ShowRelativePage(_wheelGestureDelta < 0 ? 1 : -1);
+    }
+
+    private void ChangeVolumeFromWheel(int delta)
+    {
+        // Régler le son ne doit pas ouvrir le panneau pendant le geste.
+        _expandTimer.Stop();
+        if (_volume.ChangeLevel(WheelVolumeStep * delta / WheelNotch) is { } level && !_isExpanded)
+        {
+            ClockText.Text = Math.Round(level * 100).ToString(CultureInfo.InvariantCulture) + " %";
+            _volumeFeedbackTimer.Stop();
+            _volumeFeedbackTimer.Start();
+        }
+    }
+
+    // --- Dépôt de fichiers ---
+
+    private bool IsFilesPageEnabled => _visiblePages.Contains(PageIds.Files);
+
+    private void Capsule_DragEnter(object sender, DragEventArgs e)
+    {
+        if (!IsFilesPageEnabled || !e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+        e.Effects = DragDropEffects.Copy;
+        e.Handled = true;
+        _isDraggingFile = true;
+        _expandTimer.Stop();
+        _collapseTimer.Stop();
+        Expand();
+        ShowPage(PageIds.Files, direction: 0);
+    }
+
+    private void Capsule_DragLeave(object sender, DragEventArgs e)
+    {
+        // Aussi levé en passant sur un élément intérieur : le délai de fermeture vérifie où est vraiment le curseur.
+        _isDraggingFile = false;
+        if (_isExpanded && !_isPinned)
+        {
+            _collapseTimer.Start();
+        }
+    }
+
+    private void Capsule_Drop(object sender, DragEventArgs e)
+    {
+        _isDraggingFile = false;
+        if (IsFilesPageEnabled && e.Data.GetData(DataFormats.FileDrop) is string[] paths)
+        {
+            FilesPanel.AddFiles(paths);
+        }
+        e.Handled = true;
+        if (_isExpanded && !_isPinned)
+        {
+            _collapseTimer.Start();
+        }
     }
 
     // Les pages forment une boucle dans les deux sens.
@@ -461,7 +542,53 @@ public partial class MainWindow : Window
     }
 
 
-    private bool IsInFocusMode => _settings.Current.FocusWithTimerEnabled && TimerPanel.Service.IsActive;
+    // La pause d'un Pomodoro n'est pas de la concentration : les notifications y reviennent.
+    private bool IsInFocusMode => _settings.Current.FocusWithTimerEnabled && TimerPanel.Service.IsActive && !TimerPanel.Service.IsPomodoroBreak;
+
+    private void OnPomodoroAdvanced(int step)
+    {
+        System.Media.SystemSounds.Exclamation.Play();
+        var media = MediaPanel.Service;
+        var minutes = PomodoroCycle.Duration(step).TotalMinutes.ToString("0", CultureInfo.InvariantCulture);
+        if (PomodoroCycle.IsBreak(step))
+        {
+            if (_settings.Current.PomodoroControlsMusic && media.IsPlaying)
+            {
+                _pausedMusicForBreak = true;
+                _ = media.TogglePlayPauseAsync();
+            }
+            ShowInfoBanner("", Loc.T("Pause de {0} min", minutes), Loc.T("Séance {0} terminée", PomodoroCycle.Session(step)) + DescribeMissed(), keepAfterFullscreen: true);
+            return;
+        }
+        if (_pausedMusicForBreak)
+        {
+            _pausedMusicForBreak = false;
+            if (!media.IsPlaying)
+            {
+                _ = media.TogglePlayPauseAsync();
+            }
+        }
+        ShowInfoBanner("", Loc.T("Au travail : {0} min", minutes), Loc.T("Séance {0}", PomodoroCycle.Session(step)), keepAfterFullscreen: true);
+    }
+
+    private void OnCalendarReminder(CalendarEvent item)
+    {
+        if (IsInFocusMode)
+        {
+            _missedDuringFocus++;
+            return;
+        }
+        var minutes = Math.Max(1, (int)Math.Ceiling((item.StartUtc - DateTime.UtcNow).TotalMinutes));
+        var status = Loc.T("Dans {0} min", minutes) + (item.JoinUrl is null ? string.Empty : " · " + Loc.T("Cliquez pour rejoindre"));
+        var url = item.JoinUrl ?? item.OpenUrl;
+        ShowInfoBanner("", item.Title, status, () =>
+        {
+            if (url is not null)
+            {
+                App.Mail.OpenInBrowser(url);
+            }
+        });
+    }
 
     private void OnTimerChanged()
     {
@@ -479,14 +606,14 @@ public partial class MainWindow : Window
     {
         System.Media.SystemSounds.Exclamation.Play();
         var minutes = duration.TotalMinutes.ToString("0.#", CultureInfo.InvariantCulture);
-        ShowInfoBanner("", "Minuteur terminé", $"{minutes} min écoulées{DescribeMissed()}", keepAfterFullscreen: true);
+        ShowInfoBanner("", Loc.T("Minuteur terminé"), Loc.T("{0} min écoulées", minutes) + DescribeMissed(), keepAfterFullscreen: true);
     }
 
     private void OnTimerStopped()
     {
         if (_missedDuringFocus > 0)
         {
-            ShowInfoBanner("", "Concentration terminée", DescribeMissed().TrimStart(' ', '·'), keepAfterFullscreen: true);
+            ShowInfoBanner("", Loc.T("Concentration terminée"), DescribeMissed().TrimStart(' ', '·'), keepAfterFullscreen: true);
         }
     }
 
@@ -497,8 +624,8 @@ public partial class MainWindow : Window
         return count switch
         {
             0 => string.Empty,
-            1 => " · 1 notification reçue (Win + N)",
-            _ => $" · {count} notifications reçues (Win + N)",
+            1 => " · " + Loc.T("1 notification reçue (Win + N)"),
+            _ => " · " + Loc.T("{0} notifications reçues (Win + N)", count),
         };
     }
 
@@ -513,7 +640,7 @@ public partial class MainWindow : Window
         _isNetworkUp = isUp;
         if (_settings.Current.NetworkAlertsEnabled && !IsInFocusMode)
         {
-            ShowInfoBanner("", isUp ? "Connexion rétablie" : "Connexion perdue", isUp ? "Vous êtes de nouveau en ligne" : "Aucun réseau disponible");
+            ShowInfoBanner("", isUp ? Loc.T("Connexion rétablie") : Loc.T("Connexion perdue"), isUp ? Loc.T("Vous êtes de nouveau en ligne") : Loc.T("Aucun réseau disponible"));
         }
     }
 
@@ -539,11 +666,11 @@ public partial class MainWindow : Window
         }
         if (hasPlugChanged)
         {
-            ShowInfoBanner(isOnAcPower ? "" : "", isOnAcPower ? "Chargeur branché" : "Chargeur débranché", "Batterie à " + percent);
+            ShowInfoBanner(isOnAcPower ? "" : "", isOnAcPower ? Loc.T("Chargeur branché") : Loc.T("Chargeur débranché"), Loc.T("Batterie à {0}", percent));
         }
         if (crossed is not null)
         {
-            ShowInfoBanner("", "Batterie faible", "Plus que " + percent + " : pensez à brancher le chargeur");
+            ShowInfoBanner("", Loc.T("Batterie faible"), Loc.T("Plus que {0} : pensez à brancher le chargeur", percent));
         }
     }
 
@@ -567,7 +694,7 @@ public partial class MainWindow : Window
         var crossed = _airPodsBatteryPolicy.Update(lowest, battery.IsLeftCharging || battery.IsRightCharging);
         if (crossed is not null && _settings.Current.BatteryAlertsEnabled)
         {
-            ShowInfoBanner("", "Batterie des AirPods faible", $"Environ {lowest} %");
+            ShowInfoBanner("", AirPodsPanel.IsAirPods ? Loc.T("Batterie des AirPods faible") : Loc.T("Batterie faible : {0}", AirPodsPanel.DeviceName), Loc.T("Environ {0} %", lowest));
         }
     }
 
@@ -635,10 +762,15 @@ public partial class MainWindow : Window
         MailCountText.Text = MailPanel.TotalUnread > 99 ? "99+" : MailPanel.TotalUnread.ToString(CultureInfo.InvariantCulture);
         // Le minuteur prend la place de l'égaliseur : la capsule compacte est trop étroite pour les deux.
         var timer = TimerPanel.Service;
-        CompactTimerText.Visibility = timer.IsActive ? Visibility.Visible : Visibility.Collapsed;
-        CompactTimerText.Text = timer.IsActive ? TimerService.Format(timer.Remaining) : string.Empty;
+        // Le prochain rendez-vous, s'il est proche, passe après le minuteur et avant l'égaliseur.
+        var countdown = timer.IsActive ? null : CalendarPanel.CountdownMinutes;
+        var hasLeftText = timer.IsActive || countdown is not null;
+        CompactTimerText.Visibility = hasLeftText ? Visibility.Visible : Visibility.Collapsed;
+        CompactTimerText.Text = timer.IsActive ? TimerService.Format(timer.Remaining)
+            : countdown is { } minutes ? minutes.ToString(CultureInfo.InvariantCulture) + " min"
+            : string.Empty;
         // Masqué dès que le mode compact n'est plus affiché, pour arrêter l'animation.
-        PlayingIndicator.Visibility = MediaPanel.Service.IsPlaying && isCompact && !timer.IsActive ? Visibility.Visible : Visibility.Collapsed;
+        PlayingIndicator.Visibility = MediaPanel.Service.IsPlaying && isCompact && !hasLeftText ? Visibility.Visible : Visibility.Collapsed;
 
         var temperature = WeatherPanel.CurrentTemperature;
         var showTemperature = _settings.Current.CompactTemperatureEnabled && temperature is not null;
@@ -823,6 +955,7 @@ public partial class MainWindow : Window
         _isExpanded = true;
         _trimTimer.Stop();
         SetPageHotkeys(true);
+        ShowContextualPage();
         if (_isBannerVisible)
         {
             HideBannerContent();
@@ -843,6 +976,20 @@ public partial class MainWindow : Window
         Animate(CompactContent, OpacityProperty, 0, TimeSpan.FromMilliseconds(90), null);
         Animate(ExpandedPanel, OpacityProperty, 1, TimeSpan.FromMilliseconds(220), null, TimeSpan.FromMilliseconds(90));
         Animate(CapsuleShadow, OpacityProperty, 1, TimeSpan.FromMilliseconds(220), null);
+    }
+
+    // Le plus utile selon ce qui se passe : le minuteur s'il tourne, sinon le lecteur si la musique joue, sinon la dernière page vue.
+    private void ShowContextualPage()
+    {
+        if (!_settings.Current.ContextualPageEnabled || _isDraggingFile)
+        {
+            return;
+        }
+        var page = TimerPanel.Service.IsActive ? PageIds.Timer : MediaPanel.Service.IsPlaying ? PageIds.Media : null;
+        if (page is not null && _visiblePages.Contains(page))
+        {
+            ShowPage(page, direction: 0);
+        }
     }
 
     private void Collapse()

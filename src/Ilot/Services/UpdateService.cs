@@ -67,15 +67,15 @@ internal sealed class UpdateService
     {
         if (_manager.Value is not { IsInstalled: true } manager)
         {
-            return "Mises à jour indisponibles : cette copie n'est pas installée.";
+            return Loc.T("Mises à jour indisponibles : cette copie n'est pas installée.");
         }
         if (_pending is not null)
         {
-            return $"La version {_pending.TargetFullRelease.Version} est prête.";
+            return Loc.T("La version {0} est prête.", _pending.TargetFullRelease.Version);
         }
         if (_isChecking)
         {
-            return "Recherche déjà en cours…";
+            return Loc.T("Recherche déjà en cours…");
         }
 
         _isChecking = true;
@@ -84,18 +84,18 @@ internal sealed class UpdateService
             var update = await manager.CheckForUpdatesAsync();
             if (update is null)
             {
-                return "Vous avez la dernière version.";
+                return Loc.T("Vous avez la dernière version.");
             }
             await manager.DownloadUpdatesAsync(update);
             _pending = update;
             var version = update.TargetFullRelease.Version.ToString();
             UpdateReady?.Invoke(version);
-            return $"La version {version} est prête.";
+            return Loc.T("La version {0} est prête.", version);
         }
         catch (Exception ex)
         {
             AppLog.Write(ex);
-            return "Recherche impossible pour le moment.";
+            return Loc.T("Recherche impossible pour le moment.");
         }
         finally
         {
