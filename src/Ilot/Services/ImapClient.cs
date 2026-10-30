@@ -41,6 +41,27 @@ internal sealed partial class ImapClient : IDisposable
         };
     }
 
+    /// <summary>
+    /// La boîte en ligne du service, à ouvrir d'un clic : IMAP ne donne pas de lien vers un message. Null si le service est
+    /// inconnu : le mail ne doit alors pas avoir l'air cliquable.
+    /// </summary>
+    public static string? GuessWebmail(string? address)
+    {
+        var domain = address?[(address.IndexOf('@') + 1)..].Trim().ToLowerInvariant();
+        return domain switch
+        {
+            "gmail.com" or "googlemail.com" => "https://mail.google.com/mail/",
+            "yahoo.com" or "yahoo.fr" => "https://mail.yahoo.com/",
+            "icloud.com" or "me.com" or "mac.com" => "https://www.icloud.com/mail",
+            "orange.fr" or "wanadoo.fr" => "https://messagerie.orange.fr/",
+            "free.fr" => "https://webmail.free.fr/",
+            "sfr.fr" or "neuf.fr" => "https://webmail.sfr.fr/",
+            "laposte.net" => "https://www.laposte.net/",
+            "gmx.fr" or "gmx.com" or "gmx.net" => "https://www.gmx.com/",
+            _ => null,
+        };
+    }
+
     public static async Task<ImapClient> ConnectAsync(string host, string user, string password, CancellationToken cancellationToken)
     {
         var tcp = new TcpClient();

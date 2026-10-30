@@ -99,7 +99,7 @@ public partial class MainWindow
     {
         if (!IsInFocusMode)
         {
-            ShowInfoBanner(UpdateGlyph, Loc.T("Version {0} prête", version), Loc.T("Cliquez pour redémarrer, ou elle s'installera au prochain lancement"), App.Updates.ApplyAndRestart);
+            ShowInfoBanner(UpdateGlyph, Loc.T("Version {0} prête", version), Loc.T("Cliquez pour l'installer et redémarrer"), App.Updates.ApplyAndRestart);
         }
     }
 

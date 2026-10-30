@@ -661,6 +661,43 @@ public sealed class ImapClientTests : IDisposable
     }
 
     [Fact]
+    public async Task KnownServiceGivesAWebmailLink()
+    {
+        var stream = new FakeImapStream(
+            ("LOGIN", LoginOk),
+            ("EXAMINE INBOX", "{TAG} OK\r\n"),
+            ("UID SEARCH UNSEEN", "* SEARCH 9\r\n{TAG} OK\r\n"),
+            Fetch("Sujet"));
+        var service = ServiceOver(stream);
+        service.Credentials.ImapAddress = "moi@orange.fr";
+
+        var summary = await service.GetSummaryAsync(MailProvider.Imap);
+
+        Assert.Equal("https://messagerie.orange.fr/", summary.Items[0].OpenUrl);
+    }
+
+    [Fact]
+    public async Task UnknownServiceHasNoLink()
+    {
+        var stream = new FakeImapStream(
+            ("LOGIN", LoginOk),
+            ("EXAMINE INBOX", "{TAG} OK\r\n"),
+            ("UID SEARCH UNSEEN", "* SEARCH 9\r\n{TAG} OK\r\n"),
+            Fetch("Sujet"));
+
+        var summary = await ServiceOver(stream).GetSummaryAsync(MailProvider.Imap);
+
+        Assert.Null(summary.Items[0].OpenUrl);
+    }
+
+    [Theory]
+    [InlineData("moi@gmail.com", "https://mail.google.com/mail/")]
+    [InlineData("MOI@Yahoo.FR", "https://mail.yahoo.com/")]
+    [InlineData("moi@societe.fr", null)]
+    [InlineData(null, null)]
+    public void GuessesWebmail(string? address, string? expected) => Assert.Equal(expected, ImapClient.GuessWebmail(address));
+
+    [Fact]
     public async Task EmptyInbox()
     {
         var stream = new FakeImapStream(("LOGIN", LoginOk), ("EXAMINE INBOX", "{TAG} OK\r\n"), ("UID SEARCH UNSEEN", "* SEARCH\r\n{TAG} OK\r\n"));

@@ -10,6 +10,7 @@ internal static class Program
     {
         // Doit passer avant toute interface : l'installateur lance l'application pour ses étapes d'installation.
         VelopackApp.Build()
+            .SetAutoApplyOnStartup(false) // Voir UpdateService : une mise à jour ne s'installe que sur un clic.
             .OnBeforeUninstallFastCallback(_ => UninstallCleanup.Run())
             .Run();
 

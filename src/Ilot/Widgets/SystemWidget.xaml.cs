@@ -12,6 +12,7 @@ public partial class SystemWidget : UserControl
     private const byte BatteryFlagNoSystemBattery = 128;
     private const byte BatteryPercentUnknown = 255;
     private const byte AcOnline = 1;
+    private const double MutedOpacity = 0.4;
 
     private readonly VolumeService _volume = new();
     // N'interroge le système que lorsque le panneau est visible : aucun coût à l'état compact.
@@ -58,6 +59,10 @@ public partial class SystemWidget : UserControl
             _isRendering = false;
         }
         VolumeText.Text = isAvailable ? FormatPercent(VolumeSlider.Value) : "—";
+        // Son coupé : le curseur s'éteint, pour que ça se voie sans chercher la petite icône.
+        var opacity = _isMuted ? MutedOpacity : 1;
+        VolumeSlider.Opacity = opacity;
+        VolumeText.Opacity = opacity;
     }
 
     private void RefreshBattery()

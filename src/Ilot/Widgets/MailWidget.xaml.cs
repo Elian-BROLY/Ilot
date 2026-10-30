@@ -399,7 +399,8 @@ public partial class MailWidget : UserControl
             var isOverMail = _background.IsMouseOver && Current is not null;
             var hasSeveral = isOverMail && _items.Count > 1;
             _background.Background = isOverMail ? _hoverBrush : Brushes.Transparent;
-            _background.Cursor = isOverMail ? Cursors.Hand : null;
+            // La main seulement s'il y a quelque chose à ouvrir : un compte IMAP inconnu n'a pas de lien.
+            _background.Cursor = isOverMail && Current?.OpenUrl is not null ? Cursors.Hand : null;
             _readButton.Visibility = isOverMail ? Visibility.Visible : Visibility.Collapsed;
             _trashButton.Visibility = isOverMail ? Visibility.Visible : Visibility.Collapsed;
             _nextButton.Visibility = hasSeveral ? Visibility.Visible : Visibility.Collapsed;

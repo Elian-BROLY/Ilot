@@ -21,7 +21,7 @@ A capsule at the top of your Windows 11 screen, inspired by the iPhone's pill-sh
 
 ## Install
 
-Download `Ilot-win-Setup.exe` from [Releases](https://github.com/Elian-BROLY/Ilot/releases). It installs the .NET 10 Desktop runtime if needed, which requires administrator rights once. Ilot then updates itself.
+Download `Ilot-win-Setup.exe` from [Releases](https://github.com/Elian-BROLY/Ilot/releases). It installs the .NET 10 Desktop runtime if needed, which requires administrator rights once. Ilot then downloads updates by itself, and installs them when you click its banner.
 
 The app is not code-signed yet. Windows may show a SmartScreen warning, and **Smart App Control**, if enabled, may refuse to run a given version.
 

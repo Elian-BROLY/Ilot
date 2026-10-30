@@ -144,6 +144,9 @@ public partial class TimerWidget : UserControl
     private void CustomMinutesBox_PreviewTextInput(object sender, TextCompositionEventArgs e) =>
         e.Handled = !e.Text.All(char.IsAsciiDigit);
 
+    private void CustomMinutesBox_TextChanged(object sender, TextChangedEventArgs e) =>
+        MinutesHint.Visibility = CustomMinutesBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+
     private void CustomMinutesBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)

@@ -7,7 +7,9 @@ namespace Ilot.Services;
 
 /// <summary>
 /// Cherche les nouvelles versions dans les GitHub Releases du projet et les télécharge en arrière-plan. Une version téléchargée
-/// s'installe au prochain lancement, ou tout de suite si l'utilisateur clique sur la bannière.
+/// ne s'installe que sur un clic, sur la bannière ou dans les réglages : l'exécutable n'étant pas signé, Windows peut refuser de
+/// lancer une version donnée, et une installation automatique laisserait alors une application qui ne démarre plus.
+/// La bannière revient à chaque lancement tant que la version n'est pas installée.
 /// </summary>
 internal sealed class UpdateService
 {

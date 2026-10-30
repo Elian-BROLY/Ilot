@@ -22,31 +22,40 @@
             <StackPanel x:Name="Presets" HorizontalAlignment="Right" Orientation="Horizontal" />
             <StackPanel Margin="0,6,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                 <Border Width="56" Height="30"
-                        Margin="0,0,6,0"
+                        Margin="0,0,2,0"
                         Background="{DynamicResource SurfaceBrush}"
                         CornerRadius="10">
-                    <TextBox x:Name="CustomMinutesBox"
-                             VerticalAlignment="Center"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             CaretBrush="{DynamicResource TextPrimaryBrush}"
-                             FontSize="12"
-                             Foreground="{DynamicResource TextPrimaryBrush}"
-                             MaxLength="4"
-                             TextAlignment="Center"
-                             AutomationProperties.Name="Durée en minutes"
-                             PreviewMouseLeftButtonDown="CustomMinutesBox_PreviewMouseLeftButtonDown"
-                             PreviewKeyDown="CustomMinutesBox_PreviewKeyDown"
-                             PreviewTextInput="CustomMinutesBox_PreviewTextInput"
-                             KeyDown="CustomMinutesBox_KeyDown" />
+                    <Grid>
+                        <TextBlock x:Name="MinutesHint"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   IsHitTestVisible="False"
+                                   Text="min" />
+                        <TextBox x:Name="CustomMinutesBox"
+                                 VerticalAlignment="Center"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 CaretBrush="{DynamicResource TextPrimaryBrush}"
+                                 FontSize="12"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                 MaxLength="4"
+                                 TextAlignment="Center"
+                                 AutomationProperties.Name="Durée en minutes"
+                                 PreviewMouseLeftButtonDown="CustomMinutesBox_PreviewMouseLeftButtonDown"
+                                 PreviewKeyDown="CustomMinutesBox_PreviewKeyDown"
+                                 PreviewTextInput="CustomMinutesBox_PreviewTextInput"
+                                 TextChanged="CustomMinutesBox_TextChanged"
+                                 KeyDown="CustomMinutesBox_KeyDown" />
+                    </Grid>
                 </Border>
-                <Button Width="118" Height="30"
+                <Button Width="122" Height="30"
                         Margin="0,0,6,0"
                         FontSize="11"
                         Style="{StaticResource PillRowButton}"
                         Background="{DynamicResource SurfaceBrush}"
                         Foreground="{DynamicResource TextPrimaryBrush}"
-                        Content="Lancer (minutes)"
+                        Content="Lancer"
                         Click="StartCustom_Click" />
             </StackPanel>
         </StackPanel>

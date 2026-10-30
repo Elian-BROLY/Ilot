@@ -194,7 +194,9 @@ internal sealed class MailService
         try
         {
             using var client = await OpenImapAsync(timeout.Token);
-            return await client.ReadSummaryAsync(MaxItems, timeout.Token);
+            var summary = await client.ReadSummaryAsync(MaxItems, timeout.Token);
+            var webmail = ImapClient.GuessWebmail(Credentials.ImapAddress);
+            return summary with { Items = summary.Items.Select(item => item with { OpenUrl = webmail }).ToList() };
         }
         catch (ImapException ex) when (ex.Message == ImapClient.LoginRefused)
         {

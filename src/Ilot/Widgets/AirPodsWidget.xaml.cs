@@ -210,9 +210,10 @@ public partial class AirPodsWidget : UserControl
             _ => device.IsConnected ? Loc.T("Déconnecter") : Loc.T("Connecter"),
         };
 
-        var isPrimary = !device.IsConnected && !isBusy;
-        ActionButton.Background = isPrimary ? (Brush)FindResource("AccentBrush") : _defaultButtonBackground;
-        ActionButton.Foreground = isPrimary ? Brushes.Black : _defaultButtonForeground;
+        // Discret au repos : la couleur vive ne doit attirer l'œil que pendant la connexion.
+        var isConnecting = _request == Request.Connecting;
+        ActionButton.Background = isConnecting ? (Brush)FindResource("AccentBrush") : _defaultButtonBackground;
+        ActionButton.Foreground = isConnecting ? Brushes.Black : _defaultButtonForeground;
 
         if (isBusy)
         {

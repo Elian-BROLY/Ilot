@@ -72,6 +72,7 @@ public partial class SettingsWindow : Window
         VersionText.Text = Loc.T("Version {0}", App.Updates.CurrentVersion);
         UpdateStatusText.Text = App.Updates.IsAvailable ? string.Empty : Loc.T("Cette copie n'est pas installée : pas de mise à jour.");
         CheckUpdateButton.IsEnabled = App.Updates.IsAvailable;
+        InstallUpdateButton.Visibility = App.Updates.IsPending ? Visibility.Visible : Visibility.Collapsed;
 
         ExpandDelaySlider.Value = settings.ExpandDelayMs;
         CollapseDelaySlider.Value = settings.CollapseDelayMs;
@@ -513,7 +514,10 @@ public partial class SettingsWindow : Window
         UpdateStatusText.Text = Loc.T("Recherche…");
         UpdateStatusText.Text = await App.Updates.CheckAsync();
         CheckUpdateButton.IsEnabled = true;
+        InstallUpdateButton.Visibility = App.Updates.IsPending ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private void InstallUpdate_Click(object sender, RoutedEventArgs e) => App.Updates.ApplyAndRestart();
 
     private void OpenLog_Click(object sender, RoutedEventArgs e)
     {
