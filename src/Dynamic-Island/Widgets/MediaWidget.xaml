@@ -1,0 +1,95 @@
+<UserControl x:Class="DynamicIsland.Widgets.MediaWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:DynamicIsland.Controls">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="88" />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border x:Name="Artwork"
+                Width="88" Height="88"
+                VerticalAlignment="Center"
+                Background="{DynamicResource SurfaceBrush}"
+                CornerRadius="12">
+            <TextBlock x:Name="ArtworkPlaceholder"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontFamily="{StaticResource IconFont}" FontSize="28"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Text="&#xE8D6;" />
+        </Border>
+
+        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+            <controls:MarqueeText x:Name="TitleText"
+                                  TextFontSize="13" TextFontWeight="SemiBold"
+                                  TextForeground="{StaticResource TextPrimaryBrush}" />
+            <controls:MarqueeText x:Name="ArtistText"
+                                  Margin="0,1,0,0"
+                                  TextFontSize="12"
+                                  TextForeground="{StaticResource TextSecondaryBrush}" />
+
+            <Grid x:Name="ProgressRow" Margin="0,5,0,0" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="32" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="32" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="PositionText"
+                           VerticalAlignment="Center"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <Slider x:Name="ProgressSlider"
+                        Grid.Column="1"
+                        Margin="2,0"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource ThinSlider}"
+                        Minimum="0" Maximum="1"
+                        IsMoveToPointEnabled="True"
+                        ValueChanged="ProgressSlider_ValueChanged"
+                        PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
+                <TextBlock x:Name="DurationText"
+                           Grid.Column="2"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                           FontSize="10"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </Grid>
+
+            <Grid Margin="0,3,0,0">
+                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                    <Button x:Name="PreviousButton" Style="{StaticResource IconButton}"
+                            Content="&#xE892;" ToolTip="Précédent" Click="Previous_Click" />
+                    <Button x:Name="PlayPauseButton" Style="{StaticResource IconButton}"
+                            Margin="6,0" FontSize="15"
+                            Content="&#xE768;" ToolTip="Lecture / Pause" Click="PlayPause_Click" />
+                    <Button x:Name="NextButton" Style="{StaticResource IconButton}"
+                            Content="&#xE893;" ToolTip="Suivant" Click="Next_Click" />
+                </StackPanel>
+
+                <!-- N'apparaît que si plusieurs lecteurs sont ouverts. -->
+                <Button x:Name="SourceButton"
+                        MaxWidth="80"
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Style="{StaticResource PillRowButton}"
+                        Background="{DynamicResource HoverBrush}"
+                        Padding="8,3"
+                        Visibility="Collapsed"
+                        Click="Source_Click">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right"
+                                   Margin="4,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{StaticResource IconFont}" FontSize="9"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Text="&#xE8AB;" />
+                        <TextBlock x:Name="SourceText"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                </Button>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</UserControl>

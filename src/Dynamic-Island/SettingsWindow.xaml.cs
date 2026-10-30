@@ -1,0 +1,351 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using DynamicIsland.Services;
+using DynamicIsland.Settings;
+
+namespace DynamicIsland;
+
+public partial class SettingsWindow : Window
+{
+    private static readonly Dictionary<string, string> PageLabels = new()
+    {
+        [PageIds.Media] = "Lecteur média",
+        [PageIds.Weather] = "Météo",
+        [PageIds.Mail] = "Mails",
+        [PageIds.Audio] = "Sortie audio",
+        [PageIds.Timer] = "Minuteur",
+        [PageIds.Note] = "Note rapide",
+        [PageIds.AppVolume] = "Volume par application",
+        [PageIds.Lyrics] = "Paroles (artiste et titre envoyés à LRCLIB)",
+        [PageIds.SystemStats] = "Système : CPU, mémoire, réseau",
+    };
+
+    private sealed record ScreenChoice(string? Device, string Label);
+
+    private readonly SettingsStore _store = App.Settings;
+    private bool _isLoading = true;
+
+    public SettingsWindow()
+    {
+        InitializeComponent();
+        var settings = _store.Current;
+
+        ExpandDelaySlider.Value = settings.ExpandDelayMs;
+        CollapseDelaySlider.Value = settings.CollapseDelayMs;
+        RenderDelayTexts();
+        AnimationCombo.SelectedIndex = settings.AnimationDurationFactor switch { 0 => 2, < 1 => 1, _ => 0 };
+
+        LoadScreens();
+        AutostartCheck.IsChecked = AutostartService.IsEnabled;
+        FullscreenCheck.IsChecked = settings.HideInFullscreen;
+        TintCheck.IsChecked = settings.TintEnabled;
+        CityBox.Text = settings.City ?? string.Empty;
+
+        var credentials = App.Mail.Credentials;
+        OutlookIdBox.Text = credentials.OutlookClientId ?? string.Empty;
+        GmailIdBox.Text = credentials.GmailClientId ?? string.Empty;
+        GmailSecretBox.Password = credentials.GmailClientSecret ?? string.Empty;
+        OutlookEnabledCheck.IsChecked = settings.OutlookEnabled;
+        GmailEnabledCheck.IsChecked = settings.GmailEnabled;
+        MailBannerCheck.IsChecked = settings.MailBannerEnabled;
+        SystemNotificationsCheck.IsChecked = settings.SystemNotificationsEnabled;
+        _ = RenderSystemNotificationAccessAsync();
+        RenderMailAccounts();
+        CompactTemperatureCheck.IsChecked = settings.CompactTemperatureEnabled;
+        PrivacyIndicatorsCheck.IsChecked = settings.PrivacyIndicatorsEnabled;
+        BatteryAlertsCheck.IsChecked = settings.BatteryAlertsEnabled;
+        GlobalHotkeyCheck.IsChecked = settings.GlobalHotkeyEnabled;
+        FocusWithTimerCheck.IsChecked = settings.FocusWithTimerEnabled;
+        NetworkAlertsCheck.IsChecked = settings.NetworkAlertsEnabled;
+        RenderHotkeyStatus();
+
+        ThemeCombo.SelectedIndex = settings.LightTheme ? 1 : 0;
+        AccentCombo.ItemsSource = ThemeService.Accents.Select(accent => accent.Name).ToList();
+        AccentCombo.SelectedItem = settings.AccentName;
+        SizeCombo.SelectedIndex = settings.CapsuleScale switch { < 1 => 0, > 1 => 2, _ => 1 };
+
+        RenderPages();
+        _isLoading = false;
+    }
+
+    private void LoadScreens()
+    {
+        var choices = new List<ScreenChoice> { new(null, "Écran principal") };
+        var number = 1;
+        foreach (var screen in ScreenService.GetScreens())
+        {
+            var suffix = screen.IsPrimary ? " (principal)" : string.Empty;
+            choices.Add(new ScreenChoice(screen.Device, $"Écran {number++} : {screen.Width} × {screen.Height}{suffix}"));
+        }
+        ScreenCombo.ItemsSource = choices;
+        ScreenCombo.SelectedItem = choices.FirstOrDefault(choice => choice.Device == _store.Current.MonitorDevice) ?? choices[0];
+    }
+
+    private void RenderPages()
+    {
+        PagesList.Children.Clear();
+        var pages = _store.Current.Pages;
+        for (var i = 0; i < pages.Count; i++)
+        {
+            PagesList.Children.Add(CreatePageRow(pages[i], i, pages.Count));
+        }
+    }
+
+    private DockPanel CreatePageRow(PageEntry page, int index, int count)
+    {
+        var label = PageLabels[page.Id];
+        var row = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
+
+        var down = new Button { Content = "▼", IsEnabled = index < count - 1, Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(4, 0, 0, 0) };
+        down.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, $"Descendre {label}");
+        down.Click += (_, _) => MovePage(index, index + 1);
+        DockPanel.SetDock(down, Dock.Right);
+        row.Children.Add(down);
+
+        var up = new Button { Content = "▲", IsEnabled = index > 0, Padding = new Thickness(8, 2, 8, 2) };
+        up.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, $"Monter {label}");
+        up.Click += (_, _) => MovePage(index, index - 1);
+        DockPanel.SetDock(up, Dock.Right);
+        row.Children.Add(up);
+
+        var check = new CheckBox { Content = label, IsChecked = page.IsEnabled };
+        RoutedEventHandler onChanged = (_, _) =>
+        {
+            _store.Update(_ => page.IsEnabled = check.IsChecked == true);
+            // Le magasin réactive la dernière page si tout est décoché : la case doit le refléter.
+            RenderPages();
+        };
+        check.Checked += onChanged;
+        check.Unchecked += onChanged;
+        row.Children.Add(check);
+        return row;
+    }
+
+    private void MovePage(int from, int to)
+    {
+        _store.Update(settings =>
+        {
+            var page = settings.Pages[from];
+            settings.Pages.RemoveAt(from);
+            settings.Pages.Insert(to, page);
+        });
+        RenderPages();
+    }
+
+    private void RenderDelayTexts()
+    {
+        ExpandDelayText.Text = FormatMs(ExpandDelaySlider.Value);
+        CollapseDelayText.Text = FormatMs(CollapseDelaySlider.Value);
+    }
+
+    private static string FormatMs(double value) => value.ToString("0", CultureInfo.InvariantCulture) + " ms";
+
+    private void Delay_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+        RenderDelayTexts();
+        _store.Update(settings =>
+        {
+            settings.ExpandDelayMs = (int)ExpandDelaySlider.Value;
+            settings.CollapseDelayMs = (int)CollapseDelaySlider.Value;
+        });
+    }
+
+    private void Animation_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoading && AnimationCombo.SelectedItem is ComboBoxItem { Tag: string tag })
+        {
+            _store.Update(settings => settings.AnimationDurationFactor = double.Parse(tag, CultureInfo.InvariantCulture));
+        }
+    }
+
+    private void Screen_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoading && ScreenCombo.SelectedItem is ScreenChoice choice)
+        {
+            _store.Update(settings => settings.MonitorDevice = choice.Device);
+        }
+    }
+
+    private void Recenter_Click(object sender, RoutedEventArgs e) =>
+        _store.Update(settings => settings.HorizontalPosition = 0.5);
+
+    private void Autostart_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_isLoading)
+        {
+            AutostartService.IsEnabled = AutostartCheck.IsChecked == true;
+        }
+    }
+
+    private void Options_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+        _store.Update(settings =>
+        {
+            settings.HideInFullscreen = FullscreenCheck.IsChecked == true;
+            settings.TintEnabled = TintCheck.IsChecked == true;
+        });
+    }
+
+    private void CapsuleOptions_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+        _store.Update(settings =>
+        {
+            settings.CompactTemperatureEnabled = CompactTemperatureCheck.IsChecked == true;
+            settings.PrivacyIndicatorsEnabled = PrivacyIndicatorsCheck.IsChecked == true;
+            settings.BatteryAlertsEnabled = BatteryAlertsCheck.IsChecked == true;
+            settings.GlobalHotkeyEnabled = GlobalHotkeyCheck.IsChecked == true;
+            settings.FocusWithTimerEnabled = FocusWithTimerCheck.IsChecked == true;
+            settings.NetworkAlertsEnabled = NetworkAlertsCheck.IsChecked == true;
+        });
+        RenderHotkeyStatus();
+    }
+
+    private void Appearance_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+        _store.Update(settings =>
+        {
+            settings.LightTheme = ThemeCombo.SelectedIndex == 1;
+            settings.AccentName = AccentCombo.SelectedItem as string ?? settings.AccentName;
+            if (SizeCombo.SelectedItem is ComboBoxItem { Tag: string tag })
+            {
+                settings.CapsuleScale = double.Parse(tag, CultureInfo.InvariantCulture);
+            }
+        });
+    }
+
+    private void RenderHotkeyStatus() =>
+        HotkeyStatusText.Visibility = _store.Current.GlobalHotkeyEnabled && !App.IsHotkeyRegistered ? Visibility.Visible : Visibility.Collapsed;
+
+    private async Task RenderSystemNotificationAccessAsync()
+    {
+        var isAllowed = !_store.Current.SystemNotificationsEnabled || await SystemNotificationService.RequestAccessAsync();
+        SystemNotificationsStatusText.Text = "Accès refusé : autorisez Dynamic-Island dans Paramètres > Confidentialité > Notifications.";
+        SystemNotificationsStatusText.Visibility = isAllowed ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void SystemNotifications_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+        _store.Update(settings => settings.SystemNotificationsEnabled = SystemNotificationsCheck.IsChecked == true);
+        _ = RenderSystemNotificationAccessAsync();
+    }
+
+    private void OpenNotificationSettings_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Paramètres indisponibles : le texte d'aide indique aussi le raccourci Win + N.
+        }
+    }
+
+    private void MailEnabled_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+        _store.Update(settings =>
+        {
+            settings.OutlookEnabled = OutlookEnabledCheck.IsChecked == true;
+            settings.GmailEnabled = GmailEnabledCheck.IsChecked == true;
+            settings.MailBannerEnabled = MailBannerCheck.IsChecked == true;
+        });
+    }
+
+    private void RenderMailAccounts()
+    {
+        var mail = App.Mail;
+        OutlookButton.Content = mail.IsConnected(MailProvider.Outlook) ? "Déconnecter" : "Connecter";
+        GmailButton.Content = mail.IsConnected(MailProvider.Gmail) ? "Déconnecter" : "Connecter";
+    }
+
+    private async void OutlookButton_Click(object sender, RoutedEventArgs e) =>
+        await ToggleMailAccountAsync(MailProvider.Outlook, OutlookButton, OutlookStatusText);
+
+    private async void GmailButton_Click(object sender, RoutedEventArgs e) =>
+        await ToggleMailAccountAsync(MailProvider.Gmail, GmailButton, GmailStatusText);
+
+    private async Task ToggleMailAccountAsync(MailProvider provider, Button button, TextBlock status)
+    {
+        var mail = App.Mail;
+        if (mail.IsConnected(provider))
+        {
+            mail.Disconnect(provider);
+            status.Text = "Compte déconnecté.";
+            RenderMailAccounts();
+            return;
+        }
+
+        mail.SaveClientCredentials(OutlookIdBox.Text.Trim(), GmailIdBox.Text.Trim(), GmailSecretBox.Password.Trim());
+        button.IsEnabled = false;
+        status.Text = "Connectez-vous dans la page ouverte par votre navigateur…";
+        status.Text = await mail.ConnectAsync(provider) ?? "Compte connecté.";
+        button.IsEnabled = true;
+        RenderMailAccounts();
+    }
+
+    private async void ValidateCity_Click(object sender, RoutedEventArgs e)
+    {
+        var city = CityBox.Text.Trim();
+        if (city.Length == 0)
+        {
+            _store.Update(settings =>
+            {
+                settings.City = null;
+                settings.Latitude = null;
+                settings.Longitude = null;
+            });
+            CityStatusText.Text = "Ville retirée.";
+            return;
+        }
+
+        CityStatusText.Text = "Recherche…";
+        GeocodedCity? result = null;
+        try
+        {
+            result = await WeatherService.GeocodeAsync(city);
+        }
+        catch (Exception)
+        {
+            // Une erreur imprévue ne doit pas fermer l'application : même message qu'une ville introuvable.
+        }
+        if (result is null)
+        {
+            CityStatusText.Text = "Ville introuvable, ou service inaccessible.";
+            return;
+        }
+
+        CityBox.Text = result.Name;
+        CityStatusText.Text = $"Ville enregistrée : {result.Name}.";
+        _store.Update(settings =>
+        {
+            settings.City = result.Name;
+            settings.Latitude = result.Latitude;
+            settings.Longitude = result.Longitude;
+        });
+    }
+}

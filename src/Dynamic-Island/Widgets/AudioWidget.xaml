@@ -1,0 +1,16 @@
+<UserControl x:Class="DynamicIsland.Widgets.AudioWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel VerticalAlignment="Center">
+        <TextBlock Margin="4,0,0,6"
+                   FontSize="11"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Text="Sortie audio" />
+        <UniformGrid x:Name="Outputs" Columns="2" />
+        <TextBlock x:Name="MessageText"
+                   Margin="4,6,0,0"
+                   FontSize="11"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Visibility="Collapsed" />
+    </StackPanel>
+</UserControl>

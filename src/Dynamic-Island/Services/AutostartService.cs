@@ -1,0 +1,63 @@
+using System.IO;
+using Microsoft.Win32;
+
+namespace DynamicIsland.Services;
+
+/// <summary>Démarrage avec Windows via la clé Run de l'utilisateur : aucun droit administrateur requis.</summary>
+internal static class AutostartService
+{
+    private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string ValueName = "Dynamic-Island";
+
+    /// <summary>
+    /// Après une installation, le démarrage automatique peut encore viser l'ancien dossier : il suit la copie installée,
+    /// reconnaissable à l'Update.exe de l'installateur dans le dossier parent.
+    /// </summary>
+    public static void RepointToInstalledCopy()
+    {
+        var folder = Path.GetDirectoryName(Environment.ProcessPath);
+        if (folder is not null && IsEnabled && File.Exists(Path.Combine(folder, "..", "Update.exe")))
+        {
+            IsEnabled = true;
+        }
+    }
+
+    public static bool HasEntry(string valueName)
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
+        return key?.GetValue(valueName) is not null;
+    }
+
+    /// <summary>Remplace l'entrée d'un ancien nom de l'application par la nôtre. Sans entrée, le choix de l'utilisateur est respecté.</summary>
+    public static void AdoptEntry(string valueName)
+    {
+        if (!HasEntry(valueName))
+        {
+            return;
+        }
+        IsEnabled = true;
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+        key?.DeleteValue(valueName, throwOnMissingValue: false);
+    }
+
+    public static bool IsEnabled
+    {
+        get
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
+            return key?.GetValue(ValueName) is not null;
+        }
+        set
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            if (value)
+            {
+                key?.SetValue(ValueName, $"\"{Environment.ProcessPath}\"");
+            }
+            else
+            {
+                key?.DeleteValue(ValueName, throwOnMissingValue: false);
+            }
+        }
+    }
+}

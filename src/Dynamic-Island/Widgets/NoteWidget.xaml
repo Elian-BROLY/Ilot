@@ -1,0 +1,27 @@
+<UserControl x:Class="DynamicIsland.Widgets.NoteWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="8,6">
+        <Grid>
+            <TextBlock x:Name="Placeholder"
+                       Margin="2,1,0,0"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       IsHitTestVisible="False"
+                       Text="Écrivez une note…" />
+            <TextBox x:Name="NoteBox"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     CaretBrush="{DynamicResource TextPrimaryBrush}"
+                     FontSize="12"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Hidden"
+                     AutomationProperties.Name="Note rapide"
+                     PreviewMouseLeftButtonDown="NoteBox_PreviewMouseLeftButtonDown"
+                     TextChanged="NoteBox_TextChanged"
+                     LostKeyboardFocus="NoteBox_LostKeyboardFocus" />
+        </Grid>
+    </Border>
+</UserControl>
