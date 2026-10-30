@@ -200,7 +200,6 @@
                             <widgets:TimerWidget x:Name="TimerPanel" Visibility="Collapsed" />
                             <widgets:NoteWidget x:Name="NotePanel" Visibility="Collapsed" />
                             <widgets:AppVolumeWidget x:Name="AppVolumePanel" Visibility="Collapsed" />
-                            <widgets:LyricsWidget x:Name="LyricsPanel" Visibility="Collapsed" />
                             <widgets:SystemStatsWidget x:Name="SystemStatsPanel" Visibility="Collapsed" />
                         </Grid>
                         <StackPanel x:Name="PageDots"

@@ -92,7 +92,29 @@ public partial class MailWidget : UserControl
         }
         _isRefreshing = true;
         _lastRefreshUtc = DateTime.UtcNow;
+        try
+        {
+            await ReadAccountsAsync();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write(ex);
+            _pollTimer.Start(); // Une erreur imprévue ne doit pas arrêter les mails jusqu'au redémarrage.
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
 
+        if (_isRefreshPending)
+        {
+            _isRefreshPending = false;
+            await RefreshAsync();
+        }
+    }
+
+    private async Task ReadAccountsAsync()
+    {
         var total = 0;
         var anyPolled = false;
         var anyEnabled = false;
@@ -150,7 +172,6 @@ public partial class MailWidget : UserControl
             }
         }
         NoAccountText.Visibility = anyEnabled ? Visibility.Collapsed : Visibility.Visible;
-        _isRefreshing = false;
 
         // Sans compte à lire, aucune requête périodique.
         if (anyPolled)
@@ -166,12 +187,6 @@ public partial class MailWidget : UserControl
         if (notification is not null)
         {
             NewMailReceived?.Invoke(notification);
-        }
-
-        if (_isRefreshPending)
-        {
-            _isRefreshPending = false;
-            await RefreshAsync();
         }
     }
 

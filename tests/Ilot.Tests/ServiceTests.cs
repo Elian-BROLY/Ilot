@@ -236,21 +236,26 @@ public sealed class MailServiceTests : IDisposable
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 
-    private sealed class FakeTransport(HttpStatusCode apiStatus) : HttpMessageHandler
+    private sealed class FakeTransport(HttpStatusCode apiStatus, string apiBody) : HttpMessageHandler
     {
+        public int ApiCalls { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var isToken = request.RequestUri!.Host == "oauth2.googleapis.com";
+            ApiCalls += isToken ? 0 : 1;
             return Task.FromResult(new HttpResponseMessage(isToken ? HttpStatusCode.OK : apiStatus)
             {
-                Content = new StringContent(isToken ? "{\"access_token\":\"t\",\"expires_in\":3600}" : "{}", Encoding.UTF8, "application/json"),
+                Content = new StringContent(isToken ? "{\"access_token\":\"t\",\"expires_in\":3600}" : apiBody, Encoding.UTF8, "application/json"),
             });
         }
     }
 
-    private MailService CreateService(HttpStatusCode apiStatus)
+    private MailService CreateService(HttpStatusCode apiStatus, string apiBody = "{}") => CreateService(new FakeTransport(apiStatus, apiBody));
+
+    private MailService CreateService(FakeTransport transport)
     {
-        var service = new MailService(Path.Combine(_folder, "mail.dat"), new FakeTransport(apiStatus));
+        var service = new MailService(Path.Combine(_folder, "mail.dat"), transport);
         service.Credentials.GmailRefreshToken = "r";
         return service;
     }
@@ -268,6 +273,44 @@ public sealed class MailServiceTests : IDisposable
     {
         var summary = await CreateService(HttpStatusCode.Unauthorized).GetSummaryAsync(MailProvider.Gmail);
         Assert.True(summary.NeedsReconnect);
+    }
+
+    [Fact]
+    public async Task ExpiredTokenIsRetriedOnceBeforeAskingToReconnect()
+    {
+        var transport = new FakeTransport(HttpStatusCode.Unauthorized, "{}");
+        await CreateService(transport).GetSummaryAsync(MailProvider.Gmail);
+        Assert.Equal(2, transport.ApiCalls);
+    }
+
+    [Fact]
+    public async Task RealForbiddenNeedsReconnection()
+    {
+        var body = """{"error":{"code":403,"errors":[{"reason":"insufficientPermissions"}]}}""";
+        var summary = await CreateService(HttpStatusCode.Forbidden, body).GetSummaryAsync(MailProvider.Gmail);
+        Assert.True(summary.NeedsReconnect);
+    }
+
+    [Fact]
+    public async Task RateLimitIsTemporaryAndKeepsTheLastMails()
+    {
+        var body = """{"error":{"code":403,"errors":[{"reason":"rateLimitExceeded"}]}}""";
+        var last = new MailSummary(3, [new MailItem("1", null, "A", "B", null, true)], null);
+
+        var summary = (await CreateService(HttpStatusCode.Forbidden, body).GetSummaryAsync(MailProvider.Gmail)).KeepingContentOf(last);
+
+        Assert.False(summary.NeedsReconnect);
+        Assert.NotNull(summary.Error);
+        Assert.Equal(3, summary.Unread);
+        Assert.Single(summary.Items);
+    }
+
+    [Fact]
+    public async Task RateLimitedTrashDoesNotAskToReconnect()
+    {
+        var body = """{"error":{"code":403,"errors":[{"reason":"rateLimitExceeded"}]}}""";
+        var error = await CreateService(HttpStatusCode.Forbidden, body).TrashAsync(MailProvider.Gmail, "1");
+        Assert.Equal("Suppression impossible", error);
     }
 }
 
@@ -303,29 +346,5 @@ public sealed class FileTests : IDisposable
         {
             AppLog.LogPath = original;
         }
-    }
-}
-
-public class LyricsCacheTests
-{
-    [Fact]
-    public void RemembersMissingLyrics()
-    {
-        var cache = new LyricsCache(2);
-        cache.Add("a", null);
-        Assert.True(cache.TryGet("a", out var lyrics));
-        Assert.Null(lyrics);
-    }
-
-    [Fact]
-    public void OldestLeavesFirst()
-    {
-        var cache = new LyricsCache(2);
-        cache.Add("a", null);
-        cache.Add("b", null);
-        cache.Add("c", null);
-        Assert.False(cache.TryGet("a", out _));
-        Assert.True(cache.TryGet("b", out _));
-        Assert.True(cache.TryGet("c", out _));
     }
 }

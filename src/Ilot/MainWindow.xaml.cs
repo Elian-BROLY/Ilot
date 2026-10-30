@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     private const double BaseWindowWidth = 468;
     private const double BaseWindowHeight = 240;
     private static readonly TimeSpan NetworkAlertDelay = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan PeriodicTrimGap = TimeSpan.FromMinutes(30);
     private static readonly Thickness CompactBorder = new(0);
     private static readonly Thickness ExpandedBorder = new(1);
     // Fenêtres de Windows qui couvrent tout l'écran sans être du plein écran : Bureau, barre des tâches, Alt+Tab.
@@ -89,7 +90,8 @@ public partial class MainWindow : Window
     private bool _isHotkeyRegistered;
     private int _missedDuringFocus;
     private bool _wasTimerActive;
-    private bool _isNetworkUp = NetworkInterface.GetIsNetworkAvailable();
+    private bool _isNetworkUp = NetworkStatus.IsOnline();
+    private long _lastMemoryTrimTick;
     private readonly DispatcherTimer _networkAlertTimer = new() { Interval = NetworkAlertDelay };
     private bool? _wasOnAcPower;
     private readonly PrivacyIndicatorService _privacyIndicators = new();
@@ -108,10 +110,8 @@ public partial class MainWindow : Window
             [PageIds.Timer] = TimerPanel,
             [PageIds.Note] = NotePanel,
             [PageIds.AppVolume] = AppVolumePanel,
-            [PageIds.Lyrics] = LyricsPanel,
             [PageIds.SystemStats] = SystemStatsPanel,
         };
-        LyricsPanel.Attach(MediaPanel.Service);
 
         _clockTimer.Tick += (_, _) => UpdateClock();
         _expandTimer.Tick += (_, _) =>
@@ -126,6 +126,7 @@ public partial class MainWindow : Window
             // Au repos, rend au système les pages qui n'ont servi qu'au démarrage ou à l'animation.
             if (!_isExpanded)
             {
+                _lastMemoryTrimTick = Environment.TickCount64;
                 // Sans cela, le tas .NET reste gonflé longtemps : au repos, plus rien ne l'oblige à se réduire.
                 GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
                 NativeMethods.SetProcessWorkingSetSize(NativeMethods.GetCurrentProcess(), -1, -1);
@@ -164,7 +165,8 @@ public partial class MainWindow : Window
         TimerPanel.TypingRequested += () => BeginTyping(TimerPanel.FocusInput);
         TimerPanel.TypingFinished += EndTyping;
         NotePanel.TypingRequested += () => BeginTyping(NotePanel.FocusNote);
-        NetworkChange.NetworkAvailabilityChanged += (_, e) => Dispatcher.BeginInvoke(() =>
+        // Pas NetworkAvailabilityChanged : une carte virtuelle (WSL, Docker) le fait taire en restant toujours active.
+        NetworkChange.NetworkAddressChanged += (_, _) => Dispatcher.BeginInvoke(() =>
         {
             // Un Wi-Fi qui change de borne coupe un instant : seule une coupure qui dure mérite une alerte.
             _networkAlertTimer.Stop();
@@ -182,7 +184,12 @@ public partial class MainWindow : Window
         MailPanel.UnreadChanged += () =>
         {
             UpdateCompactIndicators();
-            ScheduleMemoryTrim(); // La relecture périodique ne doit pas faire dériver la mémoire au repos.
+            // La relecture périodique ne doit pas faire dériver la mémoire au repos, mais vider la mémoire
+            // à chaque lecture ralentirait le survol suivant, qui devrait tout recharger.
+            if (Environment.TickCount64 - _lastMemoryTrimTick >= PeriodicTrimGap.TotalMilliseconds)
+            {
+                ScheduleMemoryTrim();
+            }
         };
         MailPanel.NewMailReceived += OnNewMailReceived;
         _systemNotifications.Received += OnSystemNotificationReceived;
@@ -356,8 +363,7 @@ public partial class MainWindow : Window
     private void Capsule_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (!_isExpanded || _visiblePages.Count < 2 || _currentPage is null
-            || (_currentPage == PageIds.Note && NotePanel.IsContentScrollable)
-            || (_currentPage == PageIds.Lyrics && LyricsPanel.IsContentScrollable))
+            || (_currentPage == PageIds.Note && NotePanel.IsContentScrollable))
         {
             return;
         }
@@ -498,7 +504,7 @@ public partial class MainWindow : Window
     private void CheckNetworkAvailability()
     {
         _networkAlertTimer.Stop();
-        var isUp = NetworkInterface.GetIsNetworkAvailable();
+        var isUp = NetworkStatus.IsOnline();
         if (isUp == _isNetworkUp)
         {
             return;

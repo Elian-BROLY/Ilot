@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Ilot.Services;
 using Ilot.Settings;
 
@@ -17,7 +18,6 @@ public partial class SettingsWindow : Window
         [PageIds.Timer] = "Minuteur",
         [PageIds.Note] = "Note rapide",
         [PageIds.AppVolume] = "Volume par application",
-        [PageIds.Lyrics] = "Paroles (artiste et titre envoyés à LRCLIB)",
         [PageIds.SystemStats] = "Système : CPU, mémoire, réseau",
     };
 
@@ -26,10 +26,13 @@ public partial class SettingsWindow : Window
     private sealed record ScreenChoice(string? Device, string Label);
 
     private readonly SettingsStore _store = App.Settings;
+    private readonly DispatcherTimer _delaySaveTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private bool _isLoading = true;
 
     public SettingsWindow()
     {
+        _delaySaveTimer.Tick += (_, _) => SaveDelays();
+        Closed += (_, _) => SaveDelays();
         var settings = _store.Current;
         // Fenêtre classique : elle suit le thème de la capsule avec les contrôles natifs de Windows 11.
 #pragma warning disable WPF0001
@@ -165,6 +168,18 @@ public partial class SettingsWindow : Window
             return;
         }
         RenderDelayTexts();
+        // Enregistré une fois le curseur relâché : chaque cran écrirait sur le disque et réappliquerait tous les réglages.
+        _delaySaveTimer.Stop();
+        _delaySaveTimer.Start();
+    }
+
+    private void SaveDelays()
+    {
+        if (!_delaySaveTimer.IsEnabled)
+        {
+            return;
+        }
+        _delaySaveTimer.Stop();
         _store.Update(settings =>
         {
             settings.ExpandDelayMs = (int)ExpandDelaySlider.Value;

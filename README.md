@@ -16,6 +16,8 @@ Téléchargez `Ilot-win-Setup.exe` depuis les [Releases](https://github.com/Elia
 
 L'exécutable n'est pas signé. Windows peut donc afficher un avertissement SmartScreen, et le **Contrôle intelligent des applications**, s'il est activé, peut refuser de lancer une version : Windows décide selon la réputation de chaque fichier.
 
+La désinstallation retire le démarrage automatique, les identifiants mail, les réglages et le journal. Seule la note reste, dans `%APPDATA%\Ilot\note.txt`.
+
 ## Utilisation
 
 | Geste | Effet |
@@ -27,6 +29,7 @@ L'exécutable n'est pas signé. Windows peut donc afficher un avertissement Smar
 | Molette, ou points à droite du panneau | Change de page |
 | Barre de progression du lecteur | Déplace la position de lecture, si l'application le permet |
 | Bouton Connecter / Déconnecter de la ligne AirPods | Connecte ou déconnecte les AirPods déjà appairés à Windows |
+| Clic sur l'icône de la zone de notification | Ouvre les réglages, comme relancer l'application |
 | Clic droit sur l'icône de la zone de notification | Menu « Réglages… » et « Quitter » |
 
 | Raccourci | Effet |
@@ -42,7 +45,6 @@ Les réglages sont enregistrés dans `%APPDATA%\Ilot\settings.json`. La météo 
 
 - **Lecteur** : le lecteur par défaut (Deezer, à changer dans les réglages) est affiché dès qu'il est ouvert, même en pause, sauf si l'option « afficher celui qui joue » est cochée ; sinon, le lecteur désigné par Windows. Si plusieurs lecteurs sont ouverts, le bouton à droite des commandes passe au suivant, et ce choix tient jusqu'à la fermeture du lecteur choisi ou au redémarrage de l'application. Windows n'indique que l'application : YouTube, ou Deezer ouvert dans un site web, apparaît sous le nom du navigateur (Chrome, Edge…), et seul Deezer installé en application est reconnu comme lecteur par défaut.
 - **Changement de morceau** : une petite bannière affiche le titre et l'artiste quand le morceau suivant du lecteur par défaut commence. Windows et Deezer ne donnent pas la file d'attente : le titre ne peut pas être connu à l'avance.
-- **Paroles** : LRCLIB, gratuit et sans clé. L'artiste et le titre ne sont envoyés que si la page est affichée.
 - **Volume par application** : sur la sortie par défaut, jusqu'à 4 applications.
 - **Système** : CPU, mémoire et débit réseau, mis à jour seulement quand la page est affichée.
 - **Mode concentration** : pendant un minuteur (pause comprise), les notifications et mails ne s'affichent plus en bannière, et un compte s'affiche à la fin. Les alertes de batterie et d'AirPods restent actives. Pour que rien n'apparaisse non plus en bas à droite, gardez « Ne pas déranger » activé (`Win + N`).

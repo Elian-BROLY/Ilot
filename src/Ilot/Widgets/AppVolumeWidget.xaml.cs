@@ -15,7 +15,9 @@ public partial class AppVolumeWidget : UserControl
     private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly Dictionary<string, (Slider Slider, TextBlock Percent)> _rows = [];
     private string _layoutSignature = string.Empty;
+    private readonly Dictionary<string, float> _pendingLevels = [];
     private bool _isRendering;
+    private bool _isApplyingLevels;
 
     public AppVolumeWidget()
     {
@@ -113,7 +115,7 @@ public partial class AppVolumeWidget : UserControl
             if (!_isRendering)
             {
                 percent.Text = FormatPercent(e.NewValue);
-                _ = AppVolumeService.SetLevelAsync(app.Key, (float)e.NewValue);
+                _ = ApplyLevelAsync(app.Key, (float)e.NewValue);
             }
         };
 
@@ -124,6 +126,36 @@ public partial class AppVolumeWidget : UserControl
         grid.Children.Add(percent);
         _rows[app.Key] = (slider, percent);
         return grid;
+    }
+
+    // Un seul envoi à la fois, de la dernière valeur : en glissant vite, un envoi en retard écraserait le niveau final.
+    private async Task ApplyLevelAsync(string key, float level)
+    {
+        _pendingLevels[key] = level;
+        if (_isApplyingLevels)
+        {
+            return;
+        }
+
+        _isApplyingLevels = true;
+        try
+        {
+            while (_pendingLevels.Count > 0)
+            {
+                var (nextKey, nextLevel) = _pendingLevels.First();
+                _pendingLevels.Remove(nextKey);
+                await AppVolumeService.SetLevelAsync(nextKey, nextLevel);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write(ex); // Sortie audio en train de changer : le prochain geste réessaiera.
+            _pendingLevels.Clear();
+        }
+        finally
+        {
+            _isApplyingLevels = false;
+        }
     }
 
     private static string FormatPercent(double level) =>

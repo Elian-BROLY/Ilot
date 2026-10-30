@@ -1,4 +1,6 @@
 using System.IO;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Text.Json;
 using Ilot.Services;
 using Ilot.Settings;
@@ -56,24 +58,96 @@ public class TimerServiceTests
         JsonSerializer.Deserialize<TimerSnapshot>(JsonSerializer.Serialize(snapshot))!;
 }
 
-public class LyricsParsingTests
+public class NetworkStatusTests
+{
+    private static readonly IPAddress[] Router = [IPAddress.Parse("192.168.1.1")];
+
+    [Fact]
+    public void RealAdapterWithGatewayIsOnline() =>
+        Assert.True(NetworkStatus.IsUsable(OperationalStatus.Up, NetworkInterfaceType.Wireless80211, Router));
+
+    [Fact]
+    public void VirtualAdapterWithoutGatewayIsNotOnline() =>
+        Assert.False(NetworkStatus.IsUsable(OperationalStatus.Up, NetworkInterfaceType.Ethernet, []));
+
+    [Fact]
+    public void EmptyGatewayIsNotOnline() =>
+        Assert.False(NetworkStatus.IsUsable(OperationalStatus.Up, NetworkInterfaceType.Ethernet, [IPAddress.Any]));
+
+    [Fact]
+    public void DisconnectedAdapterIsNotOnline() =>
+        Assert.False(NetworkStatus.IsUsable(OperationalStatus.Down, NetworkInterfaceType.Wireless80211, Router));
+
+    [Fact]
+    public void TunnelIsNotOnline() =>
+        Assert.False(NetworkStatus.IsUsable(OperationalStatus.Up, NetworkInterfaceType.Tunnel, Router));
+}
+
+public class UninstallCleanupTests
 {
     [Fact]
-    public void ReadsTimedLines()
+    public void RemovesEverythingButTheNote()
     {
-        var lines = LyricsService.ParseSynced("[00:12.50] Première ligne\n[01:02.00]Deuxième");
-        Assert.Equal(2, lines.Count);
-        Assert.Equal(TimeSpan.FromSeconds(12.5), lines[0].Time);
-        Assert.Equal("Première ligne", lines[0].Text);
-        Assert.Equal(TimeSpan.FromSeconds(62), lines[1].Time);
+        var folder = Path.Combine(Path.GetTempPath(), "ilot-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "mail.dat"), "x");
+        File.WriteAllText(Path.Combine(folder, "settings.json"), "x");
+        File.WriteAllText(Path.Combine(folder, "note.txt"), "ma note");
+
+        UninstallCleanup.RemoveData(folder);
+
+        Assert.Equal(["note.txt"], Directory.GetFiles(folder).Select(Path.GetFileName));
+        Directory.Delete(folder, recursive: true);
     }
 
     [Fact]
-    public void IgnoresLinesWithoutTime() => Assert.Empty(LyricsService.ParseSynced("Texte sans horodatage"));
+    public void RemovesTheFolderWithoutNote()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "ilot-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "mail.dat"), "x");
+
+        UninstallCleanup.RemoveData(folder);
+
+        Assert.False(Directory.Exists(folder));
+    }
+
+    [Fact]
+    public void MissingFolderIsNotAnError() =>
+        UninstallCleanup.RemoveData(Path.Combine(Path.GetTempPath(), "ilot-tests", Guid.NewGuid().ToString("N")));
+}
+
+public class MailRateLimitTests
+{
+    [Theory]
+    [InlineData("""{"error":{"code":403,"errors":[{"reason":"rateLimitExceeded"}]}}""")]
+    [InlineData("""{"error":{"code":403,"errors":[{"reason":"userRateLimitExceeded"}]}}""")]
+    [InlineData("""{"error":{"code":403,"errors":[{"reason":"quotaExceeded"}]}}""")]
+    public void RecognizesRateLimits(string body) => Assert.True(MailService.IsRateLimitBody(body));
+
+    [Fact]
+    public void RealDenialIsNotARateLimit() =>
+        Assert.False(MailService.IsRateLimitBody("""{"error":{"code":403,"errors":[{"reason":"insufficientPermissions"}]}}"""));
 }
 
 public class SettingsNormalizationTests
 {
+    [Fact]
+    public void NullPagesAreRebuilt()
+    {
+        var settings = JsonSerializer.Deserialize<AppSettings>("{\"Pages\":null}")!;
+        SettingsStore.Normalize(settings);
+        Assert.Equal(PageIds.All.Length, settings.Pages.Count);
+    }
+
+    [Fact]
+    public void OldLyricsPageIsDropped()
+    {
+        var settings = new AppSettings { Pages = [new PageEntry { Id = "lyrics" }, new PageEntry { Id = PageIds.Media }] };
+        SettingsStore.Normalize(settings);
+        Assert.DoesNotContain(settings.Pages, page => page.Id == "lyrics");
+    }
+
     [Fact]
     public void AddsMissingPagesAndDropsUnknownOnes()
     {

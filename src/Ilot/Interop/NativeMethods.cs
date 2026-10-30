@@ -11,7 +11,9 @@ internal static class NativeMethods
     public const int WM_NULL = 0x0000;
     public const int WM_DISPLAYCHANGE = 0x007E;
     public const int WM_DPICHANGED = 0x02E0;
+    public const int WM_LBUTTONUP = 0x0202;
     public const int WM_RBUTTONUP = 0x0205;
+    public const uint ASFW_ANY = 0xFFFFFFFF;
     public const int WM_CONTEXTMENU = 0x007B;
     public const int WM_APP = 0x8000;
 
@@ -266,6 +268,10 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AllowSetForegroundWindow(uint processId);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

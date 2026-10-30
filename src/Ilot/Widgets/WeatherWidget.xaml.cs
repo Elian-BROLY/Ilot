@@ -21,7 +21,7 @@ public partial class WeatherWidget : UserControl
     private DateTime _lastSuccessUtc = DateTime.MinValue;
     private DateTime _lastAttemptUtc = DateTime.MinValue;
     private bool _isLoading;
-    private string? _loadedCity = App.Settings.Current.City;
+    private (double? Latitude, double? Longitude) _loadedPlace = (App.Settings.Current.Latitude, App.Settings.Current.Longitude);
 
     public WeatherWidget()
     {
@@ -49,12 +49,13 @@ public partial class WeatherWidget : UserControl
     private void OnSettingsChanged()
     {
         // Seul un changement de ville justifie une requête : les curseurs de réglage en envoient en rafale.
-        var city = App.Settings.Current.City;
-        if (city == _loadedCity)
+        // Les coordonnées font foi : deux villes peuvent porter le même nom.
+        var place = (App.Settings.Current.Latitude, App.Settings.Current.Longitude);
+        if (place == _loadedPlace)
         {
             return;
         }
-        _loadedCity = city;
+        _loadedPlace = place;
         _lastSuccessUtc = DateTime.MinValue;
         _lastAttemptUtc = DateTime.MinValue;
         CurrentTemperature = null;
@@ -93,10 +94,9 @@ public partial class WeatherWidget : UserControl
             ShowMessage("Chargement de la météo…");
         }
 
-        var city = settings.City;
         var report = await WeatherService.FetchAsync(latitude, longitude);
         _isLoading = false;
-        if (settings.City != city)
+        if (settings.Latitude != latitude || settings.Longitude != longitude)
         {
             await RefreshAsync(); // La ville a changé pendant le chargement : ce résultat est celui de l'ancienne.
             return;

@@ -142,7 +142,7 @@ internal sealed class MailService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             using var response = await _http.SendAsync(request);
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            if (await IsAccessDeniedAsync(provider, response))
             {
                 return "Reconnectez le compte pour autoriser la suppression";
             }
@@ -178,7 +178,7 @@ internal sealed class MailService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             using var response = await _http.SendAsync(request);
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            if (await IsAccessDeniedAsync(provider, response))
             {
                 return "Reconnectez le compte pour autoriser cette action";
             }
@@ -261,12 +261,16 @@ internal sealed class MailService
     {
         try
         {
-            var token = await GetAccessTokenAsync(provider);
-            if (token is null)
+            try
             {
-                return new MailSummary(0, [], "Reconnexion nécessaire (Réglages)", NeedsReconnect: true);
+                return await ReadSummaryAsync(provider);
             }
-            return provider.IsGmail() ? await GetGmailSummaryAsync(provider, token) : await GetOutlookSummaryAsync(token);
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // Le jeton en mémoire a pu être invalidé plus tôt que prévu : un nouveau jeton tranche.
+                _accessTokens.Remove(provider);
+                return await ReadSummaryAsync(provider);
+            }
         }
         catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
@@ -278,6 +282,32 @@ internal sealed class MailService
             AppLog.Write(ex);
             return new MailSummary(0, [], "Lecture impossible pour le moment");
         }
+    }
+
+    private async Task<MailSummary> ReadSummaryAsync(MailProvider provider)
+    {
+        var token = await GetAccessTokenAsync(provider);
+        if (token is null)
+        {
+            return new MailSummary(0, [], "Reconnexion nécessaire (Réglages)", NeedsReconnect: true);
+        }
+        return provider.IsGmail() ? await GetGmailSummaryAsync(provider, token) : await GetOutlookSummaryAsync(token);
+    }
+
+    /// <summary>Google répond aussi 403 quand une limite de débit est atteinte : là, il suffit de patienter.</summary>
+    internal static bool IsRateLimitBody(string body) =>
+        body.Contains("RateLimitExceeded", StringComparison.OrdinalIgnoreCase)
+        || body.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase)
+        || body.Contains("dailyLimitExceeded", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<bool> IsAccessDeniedAsync(MailProvider provider, HttpResponseMessage response)
+    {
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _accessTokens.Remove(provider); // Le prochain essai demandera un nouveau jeton.
+            return true;
+        }
+        return response.StatusCode == HttpStatusCode.Forbidden && !IsRateLimitBody(await response.Content.ReadAsStringAsync());
     }
 
     private async Task<string?> SignInAsync(MailProvider provider, string clientId)
@@ -495,8 +525,13 @@ internal sealed class MailService
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         using var response = await _http.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode == HttpStatusCode.Forbidden && IsRateLimitBody(body))
+        {
+            throw new HttpRequestException("Limite de débit atteinte", null, HttpStatusCode.TooManyRequests);
+        }
         response.EnsureSuccessStatusCode();
-        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return JsonDocument.Parse(body);
     }
 
     // "Jeanne Martin <jeanne@exemple.fr>" devient "Jeanne Martin".

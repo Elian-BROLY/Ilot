@@ -47,7 +47,11 @@ public partial class TimerWidget : UserControl
             Content = label,
         };
         AutomationProperties.SetName(button, "Minuteur " + label);
-        button.Click += (_, _) => Service.Start(TimeSpan.FromMinutes(minutes));
+        button.Click += (_, _) =>
+        {
+            TypingFinished?.Invoke(); // Le champ a pu être en cours de saisie : il disparaît au lancement.
+            Service.Start(TimeSpan.FromMinutes(minutes));
+        };
         return button;
     }
 

@@ -36,7 +36,8 @@ public partial class MainWindow
             return; // Refait dans OnSourceInitialized.
         }
         var isWanted = _settings.Current.GlobalHotkeyEnabled;
-        if (isWanted != _isHotkeyRegistered)
+        // Si l'enregistrement a échoué en partie, certains raccourcis restent actifs : ils doivent aussi être retirés.
+        if (!isWanted || !_isHotkeyRegistered)
         {
             foreach (var (id, _, _) in GlobalHotkeys)
             {
@@ -52,6 +53,7 @@ public partial class MainWindow
             }
         }
         App.IsHotkeyRegistered = _isHotkeyRegistered;
+        SetPageHotkeys(_isExpanded); // Le réglage a pu changer alors que le panneau est ouvert.
     }
 
     /// <summary>Le changement de page n'occupe Ctrl + Alt + flèches que le temps où le panneau est ouvert.</summary>

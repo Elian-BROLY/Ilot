@@ -52,6 +52,11 @@ internal sealed class TrayIcon : IDisposable
             ShowMenu();
             handled = true;
         }
+        else if (msg == CallbackMessage && lParam.ToInt32() == NativeMethods.WM_LBUTTONUP)
+        {
+            _onSettings();
+            handled = true;
+        }
         else if (msg == _taskbarCreatedMessage)
         {
             // L'Explorateur a redémarré : l'icône doit être recréée.

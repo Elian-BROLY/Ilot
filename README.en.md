@@ -14,7 +14,7 @@ A capsule at the top of your Windows 11 screen, inspired by the iPhone's pill-sh
 
 - **Media player:** controls for any app that reports to Windows, with a default player (Deezer, Spotify, Apple Music) and a small banner when the next track starts.
 - **Mail:** unread Gmail and Outlook messages, with up to two Gmail accounts. Open, mark as read or delete in one click.
-- **Everyday pages:** weather, per-app volume, audio output, lyrics, timer with focus mode, quick note and system stats.
+- **Everyday pages:** weather, per-app volume, audio output, timer with focus mode, quick note and system stats.
 - **Indicators and alerts:** Windows notifications, microphone and camera dots, PC and AirPods battery.
 - **Keyboard shortcuts**, light and dark themes, and several screens.
 
@@ -28,7 +28,7 @@ The app is not code-signed yet. Windows may show a SmartScreen warning, and **Sm
 
 ## Privacy
 
-Ilot only shows the unread count, sender and subject of your mail. Deleting mail requires a broad permission (`gmail.modify`, `Mail.ReadWrite`), which technically gives access to the mailbox. Tokens are encrypted with DPAPI on your PC. The city name goes to Open-Meteo, and the artist and title go to LRCLIB only while the lyrics page is open.
+Ilot only shows the unread count, sender and subject of your mail. Deleting mail requires a broad permission (`gmail.modify`, `Mail.ReadWrite`), which technically gives access to the mailbox. Tokens are encrypted with DPAPI on your PC. The city name goes to Open-Meteo.
 
 ## Develop
 

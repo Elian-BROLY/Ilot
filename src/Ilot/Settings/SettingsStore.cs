@@ -13,10 +13,9 @@ internal static class PageIds
     public const string Timer = "timer";
     public const string Note = "note";
     public const string AppVolume = "appvolume";
-    public const string Lyrics = "lyrics";
     public const string SystemStats = "systemstats";
 
-    public static readonly string[] All = [Media, Lyrics, Weather, Mail, Audio, AppVolume, Timer, Note, SystemStats];
+    public static readonly string[] All = [Media, Weather, Mail, Audio, AppVolume, Timer, Note, SystemStats];
 }
 
 internal sealed class PageEntry
@@ -133,7 +132,8 @@ internal sealed class SettingsStore
 
     internal static void Normalize(AppSettings settings)
     {
-        settings.Pages = settings.Pages
+        // Un fichier modifié à la main peut contenir "Pages": null.
+        settings.Pages = (settings.Pages ?? [])
             .Where(page => PageIds.All.Contains(page.Id))
             .DistinctBy(page => page.Id)
             .ToList();

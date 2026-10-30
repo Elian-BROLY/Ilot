@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using Ilot.Interop;
 using Ilot.Services;
 using Ilot.Settings;
 
@@ -9,10 +10,13 @@ namespace Ilot;
 public partial class App : Application
 {
     private const string ReopenSettingsArgument = "--settings";
+    private const string ShowSettingsEventName = @"Local\Ilot.ShowSettings";
 
     private bool _isRestarting;
     private bool _reopenSettingsAfterRestart;
     private Mutex? _singleInstance;
+    private EventWaitHandle? _showSettingsEvent;
+    private RegisteredWaitHandle? _showSettingsWait;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
     private MainWindow? _mainWindow;
@@ -38,22 +42,56 @@ public partial class App : Application
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\Ilot.SingleInstance", out var isFirstInstance);
         if (!isFirstInstance)
         {
+            AskFirstInstanceToShowSettings();
             Shutdown();
             return;
         }
 
-        // Une fenêtre aussi petite n'a pas besoin du GPU, et éviter Direct3D économise beaucoup de mémoire.
-        RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
-
-        ThemeService.ApplyAtStartup(Settings.Current);
-        AutostartService.RepointToInstalledCopy();
-        _tray = new TrayIcon(ShowSettings, Shutdown);
-        _mainWindow = new MainWindow();
-        _mainWindow.Show();
-        if (e.Args.Contains(ReopenSettingsArgument))
+        try
         {
-            ShowSettings();
+            ListenForOtherInstances();
+
+            // Une fenêtre aussi petite n'a pas besoin du GPU, et éviter Direct3D économise beaucoup de mémoire.
+            RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
+
+            ThemeService.ApplyAtStartup(Settings.Current);
+            AutostartService.RepointToInstalledCopy();
+            _tray = new TrayIcon(ShowSettings, Shutdown);
+            _mainWindow = new MainWindow();
+            _mainWindow.Show();
+            if (e.Args.Contains(ReopenSettingsArgument))
+            {
+                ShowSettings();
+            }
         }
+        catch (Exception ex)
+        {
+            // Sans capsule, le processus resterait invisible et l'instance unique empêcherait toute relance.
+            AppLog.Write(ex, "Démarrage");
+            MessageBox.Show("Ilot n'a pas pu démarrer. Le détail de l'erreur se trouve dans %APPDATA%\\Ilot\\app.log.",
+                "Ilot", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
+    }
+
+    // Relancer l'application alors qu'elle tourne déjà ouvre ses réglages : sinon, rien ne se passerait à l'écran.
+    private static void AskFirstInstanceToShowSettings()
+    {
+        if (EventWaitHandle.TryOpenExisting(ShowSettingsEventName, out var showSettings))
+        {
+            using (showSettings)
+            {
+                NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
+                showSettings.Set();
+            }
+        }
+    }
+
+    private void ListenForOtherInstances()
+    {
+        _showSettingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSettingsEventName);
+        _showSettingsWait = ThreadPool.RegisterWaitForSingleObject(_showSettingsEvent,
+            (_, _) => Dispatcher.BeginInvoke(ShowSettings), null, Timeout.Infinite, executeOnlyOnce: false);
     }
 
     /// <summary>Relance l'application. Les réglages sont rouverts si le changement de thème vient de leur fenêtre.</summary>
@@ -85,6 +123,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _showSettingsWait?.Unregister(null);
+        _showSettingsEvent?.Dispose();
         _tray?.Dispose();
         _singleInstance?.Dispose();
         // Après la libération de l'instance unique : sinon, la nouvelle copie se fermerait aussitôt.

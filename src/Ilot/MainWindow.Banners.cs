@@ -211,6 +211,11 @@ public partial class MainWindow
         _bannerTimer.Interval = displayDuration;
         _bannerTimer.Start();
 
+        // Une fermeture du panneau a pu être interrompue : même invisible, il intercepterait les clics destinés à la bannière.
+        ExpandedPanel.Visibility = Visibility.Collapsed;
+        CapsuleShadow.Visibility = Visibility.Hidden;
+        Capsule.BorderThickness = CompactBorder;
+
         // Aussi si une bannière est déjà affichée : elle n'a pas forcément la même taille.
         BannerPanel.Width = width;
         BannerPanel.Height = height;
