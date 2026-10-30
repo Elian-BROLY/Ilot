@@ -54,7 +54,7 @@ Ces raccourcis se changent dans les réglages. Au premier lancement, un assistan
 - **Mode concentration** : pendant un minuteur (pause comprise), les notifications et mails ne s'affichent plus en bannière, et un compte s'affiche à la fin. Les alertes de batterie et d'AirPods restent actives. Pour que rien n'apparaisse non plus en bas à droite, gardez « Ne pas déranger » activé (`Win + N`).
 - **Écrans** : la capsule s'affiche sur l'écran choisi dans les réglages, ou passe sur celui où se trouve la souris.
 - **Sortie audio** : un clic bascule la sortie par défaut. Le bouton casque de la ligne du volume y mène directement. Windows n'ayant pas d'API publique pour ça, l'application utilise l'interface non documentée `IPolicyConfig`.
-- **Minuteur** : 5, 25 ou 45 min, ou Pomodoro (25 min de travail, 5 min de pause, 15 min toutes les 4 séances, avec la musique en pause pendant les pauses) ; le décompte reste visible dans la capsule compacte, à la place de l'égaliseur, et continue après un redémarrage de l'application.
+- **Minuteur** : 5, 25 ou 45 min, ou Pomodoro, à activer dans les réglages (25 min de travail, 5 min de pause, 15 min toutes les 4 séances, avec la musique en pause pendant les pauses) ; le décompte reste visible dans la capsule compacte, à la place de l'égaliseur, et continue après un redémarrage de l'application.
 - **Note rapide** : jusqu'à 5 notes, avec des cases à cocher, enregistrées automatiquement, en clair, dans `%APPDATA%\Ilot\note.txt`, `note2.txt`…
 - **Casque** : la ligne du bas affiche les AirPods ou un autre casque Bluetooth, au choix ou masquée. Un casque autre que des AirPods n'a qu'une jauge, si Windows connaît sa batterie.
 - **Langue** : français ou anglais.

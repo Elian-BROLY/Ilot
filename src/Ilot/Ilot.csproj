@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Ilot</RootNamespace>
     <AssemblyName>Ilot</AssemblyName>
-    <Version>1.6.1</Version>
+    <Version>1.6.2</Version>
     <StartupObject>Ilot.Program</StartupObject>
     <Product>Ilot</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>

@@ -64,7 +64,8 @@ internal sealed class AppSettings
     public int QuietHoursEnd { get; set; } = 7 * 60;
     /// <summary>Raccourcis modifiés, par action. Une action absente garde son raccourci d'origine.</summary>
     public Dictionary<string, string> Hotkeys { get; set; } = [];
-    public bool PomodoroButtonEnabled { get; set; } = true;
+    /// <summary>Faux par défaut : le minuteur reste aussi simple qu'avant pour qui n'a pas demandé le Pomodoro.</summary>
+    public bool PomodoroButtonEnabled { get; set; }
     /// <summary>Faux : le minuteur Pomodoro ne touche pas à la musique.</summary>
     public bool PomodoroControlsMusic { get; set; } = true;
     /// <summary>Vrai : la ligne du casque s'affiche dans le panneau.</summary>

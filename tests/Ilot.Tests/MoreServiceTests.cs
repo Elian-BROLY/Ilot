@@ -71,6 +71,13 @@ public class NewUserDefaultsTests
     }
 
     [Fact]
+    public void PomodoroButtonIsHiddenUntilAsked()
+    {
+        Assert.False(new AppSettings().PomodoroButtonEnabled);
+        Assert.False(JsonSerializer.Deserialize<AppSettings>("""{"City":"Strasbourg"}""")!.PomodoroButtonEnabled);
+    }
+
+    [Fact]
     public void ExistingFileKeepsItsChoices()
     {
         var settings = JsonSerializer.Deserialize<AppSettings>("""{"PreferredPlayer":"deezer","City":"Strasbourg","Latitude":48.58,"Longitude":7.74}""")!;
