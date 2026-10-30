@@ -560,9 +560,17 @@ public class ImapParsingTests
 internal sealed class FakeImapStream(params (string Expected, string Reply)[] script) : Stream
 {
     private readonly Queue<(string Expected, string Reply)> _script = new(script);
-    private readonly MemoryStream _toRead = new(System.Text.Encoding.UTF8.GetBytes("* OK prêt\r\n"));
+    private readonly MemoryStream _toRead = Greeting();
 
     public List<string> Commands { get; } = [];
+
+    private static MemoryStream Greeting()
+    {
+        var stream = new MemoryStream(); // Extensible : chaque réponse remplace la précédente.
+        stream.Write(System.Text.Encoding.UTF8.GetBytes("* OK prêt\r\n"));
+        stream.Position = 0;
+        return stream;
+    }
 
     public override void Write(byte[] buffer, int offset, int count)
     {

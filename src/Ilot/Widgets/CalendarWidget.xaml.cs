@@ -42,11 +42,11 @@ public partial class CalendarWidget : UserControl
     /// <summary>Minutes avant le prochain rendez-vous s'il est proche, sinon null.</summary>
     public int? CountdownMinutes => _wasEnabled ? CalendarEvents.CountdownMinutesLeft(_events, DateTime.UtcNow) : null;
 
-    private static bool IsEnabled => App.Settings.Current.Pages.Any(page => page.Id == PageIds.Calendar && page.IsEnabled);
+    private static bool IsPageEnabled => App.Settings.Current.Pages.Any(page => page.Id == PageIds.Calendar && page.IsEnabled);
 
     private void ApplyEnabled()
     {
-        var isEnabled = IsEnabled;
+        var isEnabled = IsPageEnabled;
         App.Mail.RequestCalendarAccess = isEnabled;
         if (isEnabled == _wasEnabled)
         {
