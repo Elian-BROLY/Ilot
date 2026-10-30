@@ -1,4 +1,3 @@
-using DynamicIsland.Services;
 using Velopack;
 
 namespace DynamicIsland;
@@ -10,7 +9,6 @@ internal static class Program
     {
         // Doit passer avant toute interface : l'installateur lance l'application pour ses étapes d'installation.
         VelopackApp.Build().Run();
-        LegacyMigration.Run();
 
         var app = new App();
         app.InitializeComponent();

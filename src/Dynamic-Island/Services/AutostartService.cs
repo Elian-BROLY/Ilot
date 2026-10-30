@@ -22,24 +22,6 @@ internal static class AutostartService
         }
     }
 
-    public static bool HasEntry(string valueName)
-    {
-        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
-        return key?.GetValue(valueName) is not null;
-    }
-
-    /// <summary>Remplace l'entrée d'un ancien nom de l'application par la nôtre. Sans entrée, le choix de l'utilisateur est respecté.</summary>
-    public static void AdoptEntry(string valueName)
-    {
-        if (!HasEntry(valueName))
-        {
-            return;
-        }
-        IsEnabled = true;
-        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
-        key?.DeleteValue(valueName, throwOnMissingValue: false);
-    }
-
     public static bool IsEnabled
     {
         get

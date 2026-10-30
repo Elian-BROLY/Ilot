@@ -25,10 +25,6 @@ L'exécutable est autonome, mais il doit rester à côté des autres fichiers de
 
 Les réglages sont enregistrés dans `%APPDATA%\Dynamic-Island\settings.json`. La météo affiche Strasbourg par défaut ; la ville se change dans les réglages et son nom est envoyé au service [Open-Meteo](https://open-meteo.com/).
 
-## Reprise de NotchPixel
-
-L'application s'appelait NotchPixel. À son premier lancement, elle copie réglages, comptes mail et note depuis `%APPDATA%\NotchPixel`, ferme l'ancienne version et reprend son démarrage automatique. L'ancienne version reste à désinstaller depuis les Paramètres de Windows.
-
 ## Installer
 
 `make-installer.cmd` génère `installer\Dynamic-Island-win-Setup.exe`. L'installation se fait par utilisateur, sans droits admin : menu Démarrer, bureau, désinstallation depuis les Paramètres de Windows. Pour une mise à jour, augmentez `<Version>` dans `Dynamic-Island.csproj`, relancez le script et exécutez le nouveau Setup. L'exécutable n'est pas signé : Windows peut afficher un avertissement SmartScreen sur un fichier téléchargé.
