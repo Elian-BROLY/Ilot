@@ -46,8 +46,9 @@ internal sealed class SystemNotificationService
         {
             return await UserNotificationListener.Current.RequestAccessAsync() == UserNotificationListenerAccessStatus.Allowed;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             return false;
         }
     }
@@ -123,8 +124,9 @@ internal sealed class SystemNotificationService
                 Received?.Invoke(await ConvertAsync(notification));
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             // Service de notifications momentanément indisponible : nouvel essai au prochain passage.
         }
         finally

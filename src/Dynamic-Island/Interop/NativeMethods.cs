@@ -129,10 +129,12 @@ internal static class NativeMethods
     public static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
 
     public const int WM_HOTKEY = 0x0312;
+    public const int WM_SETTINGCHANGE = 0x001A;
     public const int WM_POWERBROADCAST = 0x0218;
     public const int PBT_APMPOWERSTATUSCHANGE = 0x000A;
     public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
+    public const uint MOD_SHIFT = 0x0004;
     public const uint MOD_NOREPEAT = 0x4000;
 
     [DllImport("user32.dll", SetLastError = true)]

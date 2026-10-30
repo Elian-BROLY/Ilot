@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using DynamicIsland.Settings;
+using Microsoft.Win32;
 
 namespace DynamicIsland.Services;
 
@@ -29,10 +30,18 @@ internal static class ThemeService
 
     public static bool NeedsRestart(AppSettings settings) => ThemeKey(settings) != _appliedTheme;
 
+    public static bool IsLight(AppSettings settings) => settings.FollowSystemTheme ? IsSystemLight() : settings.LightTheme;
+
+    private static bool IsSystemLight()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+        return key?.GetValue("AppsUseLightTheme") is 1;
+    }
+
     public static void ApplyAtStartup(AppSettings settings)
     {
         _appliedTheme = ThemeKey(settings);
-        var isLight = settings.LightTheme;
+        var isLight = IsLight(settings);
         CompactFill = isLight ? Color.FromRgb(0xF5, 0xF5, 0xF7) : Color.FromRgb(0x0D, 0x0D, 0x0D);
         ExpandedFill = isLight ? Color.FromArgb(0xF2, 0xF2, 0xF2, 0xF6) : Color.FromArgb(0xEB, 0x16, 0x16, 0x1A);
 
@@ -48,7 +57,7 @@ internal static class ThemeService
         SetBrush("AccentBrush", accent.Color);
     }
 
-    private static string ThemeKey(AppSettings settings) => $"{settings.LightTheme}|{settings.AccentName}";
+    private static string ThemeKey(AppSettings settings) => $"{IsLight(settings)}|{settings.AccentName}";
 
     private static void SetBrush(string key, Color color) =>
         Application.Current.Resources[key] = new SolidColorBrush(color);

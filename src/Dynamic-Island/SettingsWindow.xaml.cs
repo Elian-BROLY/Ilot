@@ -28,8 +28,21 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow()
     {
-        InitializeComponent();
         var settings = _store.Current;
+        // Fenêtre classique : elle suit le thème de la capsule avec les contrôles natifs de Windows 11.
+#pragma warning disable WPF0001
+        ThemeMode = ThemeService.IsLight(settings) ? ThemeMode.Light : ThemeMode.Dark;
+#pragma warning restore WPF0001
+        InitializeComponent();
+
+        PlayerCombo.SelectedItem = PlayerCombo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => (string)item.Tag == settings.PreferredPlayer)
+            ?? PlayerCombo.Items[0];
+        PlayingOverPausedCheck.IsChecked = settings.ShowPlayingOverPausedPreferred;
+        TrackBannerCheck.IsChecked = settings.TrackBannerEnabled;
+        AutoUpdateCheck.IsChecked = settings.AutoUpdateEnabled;
+        VersionText.Text = $"Version {App.Updates.CurrentVersion}";
+        UpdateStatusText.Text = App.Updates.IsAvailable ? string.Empty : "Cette copie n'est pas installée : pas de mise à jour.";
+        CheckUpdateButton.IsEnabled = App.Updates.IsAvailable;
 
         ExpandDelaySlider.Value = settings.ExpandDelayMs;
         CollapseDelaySlider.Value = settings.CollapseDelayMs;
@@ -60,7 +73,7 @@ public partial class SettingsWindow : Window
         NetworkAlertsCheck.IsChecked = settings.NetworkAlertsEnabled;
         RenderHotkeyStatus();
 
-        ThemeCombo.SelectedIndex = settings.LightTheme ? 1 : 0;
+        ThemeCombo.SelectedIndex = settings.FollowSystemTheme ? 2 : settings.LightTheme ? 1 : 0;
         AccentCombo.ItemsSource = ThemeService.Accents.Select(accent => accent.Name).ToList();
         AccentCombo.SelectedItem = settings.AccentName;
         SizeCombo.SelectedIndex = settings.CapsuleScale switch { < 1 => 0, > 1 => 2, _ => 1 };
@@ -221,6 +234,7 @@ public partial class SettingsWindow : Window
         }
         _store.Update(settings =>
         {
+            settings.FollowSystemTheme = ThemeCombo.SelectedIndex == 2;
             settings.LightTheme = ThemeCombo.SelectedIndex == 1;
             settings.AccentName = AccentCombo.SelectedItem as string ?? settings.AccentName;
             if (SizeCombo.SelectedItem is ComboBoxItem { Tag: string tag })
@@ -228,6 +242,52 @@ public partial class SettingsWindow : Window
                 settings.CapsuleScale = double.Parse(tag, CultureInfo.InvariantCulture);
             }
         });
+    }
+
+    private void Player_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+        _store.Update(settings =>
+        {
+            settings.PreferredPlayer = PlayerCombo.SelectedItem is ComboBoxItem { Tag: string tag } ? tag : settings.PreferredPlayer;
+            settings.ShowPlayingOverPausedPreferred = PlayingOverPausedCheck.IsChecked == true;
+            settings.TrackBannerEnabled = TrackBannerCheck.IsChecked == true;
+        });
+    }
+
+    private void AutoUpdate_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_isLoading)
+        {
+            _store.Update(settings => settings.AutoUpdateEnabled = AutoUpdateCheck.IsChecked == true);
+        }
+    }
+
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdateButton.IsEnabled = false;
+        UpdateStatusText.Text = "Recherche…";
+        UpdateStatusText.Text = await App.Updates.CheckAsync();
+        CheckUpdateButton.IsEnabled = true;
+    }
+
+    private void OpenLog_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!System.IO.File.Exists(AppLog.LogPath))
+            {
+                AppLog.Write("Journal créé : aucune erreur enregistrée jusqu'ici.");
+            }
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppLog.LogPath) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            AppLog.Write(ex);
+        }
     }
 
     private void RenderHotkeyStatus() =>
@@ -329,8 +389,9 @@ public partial class SettingsWindow : Window
         {
             result = await WeatherService.GeocodeAsync(city);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             // Une erreur imprévue ne doit pas fermer l'application : même message qu'une ville introuvable.
         }
         if (result is null)

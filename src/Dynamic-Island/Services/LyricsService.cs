@@ -10,14 +10,44 @@ internal sealed record LyricLine(TimeSpan Time, string Text);
 /// <summary>Synced vide si seules les paroles brutes existent. Le service n'envoie que l'artiste et le titre.</summary>
 internal sealed record Lyrics(IReadOnlyList<LyricLine> Synced, string Plain);
 
+/// <summary>Les paroles des derniers morceaux, en mémoire : une réécoute ne renvoie aucune requête. Les plus anciennes sortent en premier.</summary>
+internal sealed class LyricsCache(int capacity)
+{
+    private readonly Dictionary<string, Lyrics?> _entries = [];
+    private readonly Queue<string> _order = new();
+
+    public bool TryGet(string key, out Lyrics? lyrics) => _entries.TryGetValue(key, out lyrics);
+
+    public void Add(string key, Lyrics? lyrics)
+    {
+        if (!_entries.ContainsKey(key))
+        {
+            _order.Enqueue(key);
+            if (_order.Count > capacity)
+            {
+                _entries.Remove(_order.Dequeue());
+            }
+        }
+        _entries[key] = lyrics;
+    }
+}
+
 /// <summary>Paroles via LRCLIB : service gratuit, sans clé d'API.</summary>
 internal static partial class LyricsService
 {
     private const string Api = "https://lrclib.net/api";
+    private const int CacheCapacity = 30;
     private static readonly HttpClient Http = CreateClient();
+    private static readonly LyricsCache Cache = new(CacheCapacity);
 
     public static async Task<Lyrics?> FindAsync(string artist, string title)
     {
+        var key = $"{artist}|{title}";
+        if (Cache.TryGet(key, out var cached))
+        {
+            return cached;
+        }
+
         var cleanTitle = NoisePattern().Replace(title, string.Empty).Trim();
         try
         {
@@ -27,6 +57,7 @@ internal static partial class LyricsService
                 using var document = JsonDocument.Parse(await exact.Content.ReadAsStringAsync());
                 if (Parse(document.RootElement) is { } found)
                 {
+                    Cache.Add(key, found);
                     return found;
                 }
             }
@@ -38,9 +69,11 @@ internal static partial class LyricsService
             {
                 if (Parse(item) is { } found)
                 {
+                    Cache.Add(key, found);
                     return found;
                 }
             }
+            Cache.Add(key, null); // Seule une vraie absence est retenue : une coupure réseau ne l'est pas.
             return null;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or UriFormatException)
@@ -74,7 +107,7 @@ internal static partial class LyricsService
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Dynamic-Island/1.2");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Dynamic-Island/1.3");
         return client;
     }
 

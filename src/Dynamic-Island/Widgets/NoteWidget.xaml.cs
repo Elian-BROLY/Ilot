@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using DynamicIsland.Services;
 
 namespace DynamicIsland.Widgets;
 
@@ -51,8 +52,7 @@ public partial class NoteWidget : UserControl
         }
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, NoteBox.Text);
+            AtomicFile.WriteAllText(_path, NoteBox.Text);
             _hasUnsavedChanges = false;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

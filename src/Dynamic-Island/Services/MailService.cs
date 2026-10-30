@@ -29,8 +29,16 @@ internal sealed class MailCredentials
 /// <summary>IsLoaded est faux si seul l'identifiant est connu : Gmail exige une requête par message pour le reste.</summary>
 internal sealed record MailItem(string Id, string? ThreadId, string? Sender, string? Subject, string? OpenUrl, bool IsLoaded);
 
-/// <summary>Items : les derniers non lus, du plus récent au plus ancien. Error est null si la lecture a réussi.</summary>
-internal sealed record MailSummary(int Unread, IReadOnlyList<MailItem> Items, string? Error);
+/// <summary>
+/// Items : les derniers non lus, du plus récent au plus ancien. Error est null si la lecture a réussi.
+/// NeedsReconnect : l'accès est perdu, contrairement à une simple coupure réseau.
+/// </summary>
+internal sealed record MailSummary(int Unread, IReadOnlyList<MailItem> Items, string? Error, bool NeedsReconnect = false)
+{
+    /// <summary>Après une lecture ratée, garde les derniers mails et le dernier compteur : une coupure réseau ne vide pas la boîte.</summary>
+    public MailSummary KeepingContentOf(MailSummary? last) =>
+        Error is null || NeedsReconnect || last is null ? this : last with { Error = Error };
+}
 
 /// <summary>
 /// Accès à Gmail et Outlook via OAuth 2 (PKCE et redirection locale). L'application n'utilise que les compteurs,
@@ -241,17 +249,18 @@ internal sealed class MailService
             var token = await GetAccessTokenAsync(provider);
             if (token is null)
             {
-                return new MailSummary(0, [], "Reconnexion nécessaire (Réglages)");
+                return new MailSummary(0, [], "Reconnexion nécessaire (Réglages)", NeedsReconnect: true);
             }
             return provider == MailProvider.Gmail ? await GetGmailSummaryAsync(token) : await GetOutlookSummaryAsync(token);
         }
         catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             _accessTokens.Remove(provider);
-            return new MailSummary(0, [], "Accès refusé : reconnectez le compte");
+            return new MailSummary(0, [], "Accès refusé : reconnectez le compte", NeedsReconnect: true);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
         {
+            AppLog.Write(ex);
             return new MailSummary(0, [], "Lecture impossible pour le moment");
         }
     }
@@ -539,9 +548,8 @@ internal sealed class MailService
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var bytes = JsonSerializer.SerializeToUtf8Bytes(Credentials);
-            File.WriteAllBytes(_path, ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser));
+            AtomicFile.WriteAllBytes(_path, ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser));
         }
         catch (Exception ex) when (ex is IOException or CryptographicException or UnauthorizedAccessException)
         {

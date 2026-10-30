@@ -40,8 +40,9 @@ public partial class AudioWidget : UserControl
         {
             outputs = await AudioOutputService.ListAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             ShowMessage("Sorties audio indisponibles");
             return;
         }
@@ -115,8 +116,9 @@ public partial class AudioWidget : UserControl
         {
             isDone = await AudioOutputService.SetDefaultAsync(output.Id);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             // Interface non documentée de Windows : elle peut disparaître avec une mise à jour.
         }
         if (isDone)

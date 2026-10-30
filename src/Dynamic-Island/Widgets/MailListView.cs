@@ -116,7 +116,9 @@ internal sealed class MailListView
         _failed.Clear();
         _page = Math.Min(_page, PageCount - 1);
 
-        _titleText.Text = provider == MailProvider.Gmail ? "Gmail" : "Outlook";
+        var label = provider == MailProvider.Gmail ? "Gmail" : "Outlook";
+        // Les derniers mails restent affichés : l'erreur tient dans l'en-tête.
+        _titleText.Text = summary.Error is { } error && _items.Count > 0 ? $"{label} · {error}" : label;
         _messageText.Text = summary.Error ?? "Aucun message non lu";
         _countBadge.Visibility = summary.Unread > 0 ? Visibility.Visible : Visibility.Collapsed;
         _countText.Text = summary.Unread > 999 ? "999+" : summary.Unread.ToString(CultureInfo.InvariantCulture);

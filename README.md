@@ -1,14 +1,16 @@
 # Dynamic-Island
 
-Dynamic Island pour Windows 11 : une capsule en haut de l'écran qui s'ouvre au survol et donne accès au lecteur média, à la météo, au volume, à la batterie et aux AirPods.
+Dynamic Island pour Windows 11 : une capsule en haut de l'écran qui s'ouvre au survol et donne accès au lecteur média, aux mails, à la météo, au volume, à la batterie et aux AirPods.
 
-## Lancer
+![Le lecteur](docs/lecteur.png)
 
-```
-dist\Dynamic-Island.exe
-```
+![Les mails](docs/mails.png)
 
-L'exécutable est autonome, mais il doit rester à côté des autres fichiers de `dist\`.
+## Installer
+
+Téléchargez `Dynamic-Island-win-Setup.exe` depuis les [Releases](https://github.com/Elian-BROLY/Dynamic-Island/releases). Il installe aussi le runtime .NET 10 Desktop s'il manque, ce qui demande une fois les droits administrateur. L'application se met ensuite à jour toute seule.
+
+L'exécutable n'est pas signé. Windows peut donc afficher un avertissement SmartScreen, et le **Contrôle intelligent des applications**, s'il est activé, peut refuser de lancer une version : Windows décide selon la réputation de chaque fichier.
 
 ## Utilisation
 
@@ -23,15 +25,19 @@ L'exécutable est autonome, mais il doit rester à côté des autres fichiers de
 | Bouton Connecter / Déconnecter de la ligne AirPods | Connecte ou déconnecte les AirPods déjà appairés à Windows |
 | Clic droit sur l'icône de la zone de notification | Menu « Réglages… » et « Quitter » |
 
+| Raccourci | Effet |
+| --- | --- |
+| `Ctrl + Alt + N` | Ouvre ou réduit la capsule |
+| `Ctrl + Alt + ↑` ou `↓` | Change de page, panneau ouvert |
+| `Ctrl + Alt + Maj + Espace` | Lecture ou pause |
+| `Ctrl + Alt + Maj + →` ou `←` | Morceau suivant ou précédent |
+
 Les réglages sont enregistrés dans `%APPDATA%\Dynamic-Island\settings.json`. La météo affiche Strasbourg par défaut ; la ville se change dans les réglages et son nom est envoyé au service [Open-Meteo](https://open-meteo.com/).
-
-## Installer
-
-`make-installer.cmd` génère `installer\Dynamic-Island-win-Setup.exe`. L'installation se fait par utilisateur, sans droits admin : menu Démarrer, bureau, désinstallation depuis les Paramètres de Windows. Pour une mise à jour, augmentez `<Version>` dans `Dynamic-Island.csproj`, relancez le script et exécutez le nouveau Setup. L'exécutable n'est pas signé : Windows peut afficher un avertissement SmartScreen sur un fichier téléchargé.
 
 ## Pages et indicateurs
 
-- **Lecteur** : Deezer est affiché par défaut dès qu'il est ouvert, même en pause ; sinon, le lecteur désigné par Windows. Si plusieurs lecteurs sont ouverts, le bouton à droite des commandes passe au suivant, et ce choix tient jusqu'à la fermeture du lecteur choisi ou au redémarrage de l'application. Windows n'indique que l'application : YouTube, ou Deezer ouvert dans un site web, apparaît sous le nom du navigateur (Chrome, Edge…), et seul Deezer installé en application est reconnu comme lecteur par défaut.
+- **Lecteur** : le lecteur par défaut (Deezer, à changer dans les réglages) est affiché dès qu'il est ouvert, même en pause, sauf si l'option « afficher celui qui joue » est cochée ; sinon, le lecteur désigné par Windows. Si plusieurs lecteurs sont ouverts, le bouton à droite des commandes passe au suivant, et ce choix tient jusqu'à la fermeture du lecteur choisi ou au redémarrage de l'application. Windows n'indique que l'application : YouTube, ou Deezer ouvert dans un site web, apparaît sous le nom du navigateur (Chrome, Edge…), et seul Deezer installé en application est reconnu comme lecteur par défaut.
+- **Changement de morceau** : une petite bannière affiche le titre et l'artiste quand le morceau suivant du lecteur par défaut commence. Windows et Deezer ne donnent pas la file d'attente : le titre ne peut pas être connu à l'avance.
 - **Paroles** : LRCLIB, gratuit et sans clé. L'artiste et le titre ne sont envoyés que si la page est affichée.
 - **Volume par application** : sur la sortie par défaut, jusqu'à 4 applications.
 - **Système** : CPU, mémoire et débit réseau, mis à jour seulement quand la page est affichée.
@@ -42,7 +48,6 @@ Les réglages sont enregistrés dans `%APPDATA%\Dynamic-Island\settings.json`. L
 - **Note rapide** : enregistrée automatiquement, en clair, dans `%APPDATA%\Dynamic-Island\note.txt`.
 - **Micro et caméra** : point orange pour le micro, vert pour la caméra.
 - **Alertes batterie** : PC à 20 % et 10 %, AirPods à 20 % (contrôle toutes les 5 min tant qu'ils sont connectés), chargeur branché ou débranché.
-- **Raccourci** : `Ctrl + Alt + N` ouvre et réduit la capsule.
 - **Température** : affichée à côté de l'heure en mode compact.
 
 Tout se désactive dans les réglages.
@@ -53,7 +58,23 @@ Les notifications de Windows s'affichent dans une bannière de la capsule, l'une
 
 ## Mails
 
-Dans les réglages, section **Mails** : collez vos identifiants OAuth puis cliquez sur **Connecter**. Les cases **Afficher Outlook** et **Afficher Gmail** masquent un compte de la capsule sans le déconnecter.
+Dans les réglages, onglet **Mails** : collez vos identifiants OAuth puis cliquez sur **Connecter**. Les cases **Afficher Outlook** et **Afficher Gmail** masquent un compte de la capsule sans le déconnecter.
+
+### Créer ses identifiants Google
+
+1. Sur la [console Google Cloud](https://console.cloud.google.com/), créez un projet.
+2. Dans **API et services > Bibliothèque**, activez l'**API Gmail**.
+3. Dans **Écran de consentement OAuth**, choisissez le type **Externe**, ajoutez votre adresse comme utilisateur test, puis passez l'application **en production**. En mode test, Google retire l'autorisation au bout de 7 jours. En production, un écran d'avertissement s'affiche à la connexion, car l'application n'est pas vérifiée par Google.
+4. Dans **Identifiants**, créez un **ID client OAuth** de type **Application de bureau**.
+5. Collez l'ID client et le code secret dans l'onglet **Mails**.
+
+### Créer ses identifiants Outlook
+
+1. Sur le [portail Azure](https://portal.azure.com/), ouvrez **Inscriptions d'applications** et créez une application pour les comptes personnels et professionnels.
+2. Dans **Authentification**, ajoutez la plateforme **Applications mobiles et de bureau**, avec l'URI de redirection `http://localhost`.
+3. Copiez l'**ID d'application (client)** dans l'onglet **Mails**.
+
+### Fonctionnement
 
 Sur la page Mails, un clic sur un mail l'ouvre dans le navigateur. Au survol, la corbeille place le mail, en un clic, dans la corbeille du service, d'où il reste récupérable.
 
@@ -65,15 +86,27 @@ L'application n'affiche que le nombre de non lus, l'expéditeur et le sujet. La 
 
 Une bannière apparaît à chaque connexion ou déconnexion des AirPods quand le panneau est fermé. La batterie (G : gauche, D : droite, B : boîtier) provient d'annonces Bluetooth non documentées par Apple : elle est indicative, par pas de 10 %. L'écoute Bluetooth ne tourne que lorsque la batterie est affichée.
 
-## Compiler
+## Dépannage
+
+Les erreurs techniques sont notées dans `%APPDATA%\Dynamic-Island\app.log`, jamais le contenu des mails ou de la note. Le bouton **Ouvrir le journal** se trouve dans l'onglet **À propos** des réglages.
+
+## Développer
 
 Prérequis : SDK .NET 10.
 
-```
-publish.cmd
-```
+| Commande | Effet |
+| --- | --- |
+| `dotnet run --project src\Dynamic-Island` | Lance l'application |
+| `dotnet test tests\Dynamic-Island.Tests` | Lance les tests |
+| `publish.cmd` | Génère `dist\` |
+| `make-installer.cmd` | Génère `installer\Dynamic-Island-win-Setup.exe` |
 
-Le résultat est généré dans `dist\`. Pour le développement : `dotnet run --project src\Dynamic-Island`.
+## Publier une version
+
+1. Augmentez `<Version>` dans `Dynamic-Island.csproj` et poussez le commit.
+2. Lancez `git tag v1.3.0`, puis `git push origin v1.3.0`, avec le même numéro.
+
+GitHub Actions lance les tests, construit l'installateur et publie la Release. Les copies installées la trouvent en moins de 6 heures.
 
 ## Structure
 
@@ -81,12 +114,15 @@ Le résultat est généré dans `dist\`. Pour le développement : `dotnet run --
 src/Dynamic-Island/
   App.xaml(.cs)         Démarrage, instance unique, mode de rendu
   MainWindow.xaml(.cs)  Capsule : position, états, pages, animations, survol, masquage en plein écran
+  MainWindow.Banners.cs Bannières : notifications, mails, morceau suivant, alertes
+  MainWindow.Hotkeys.cs Raccourcis clavier globaux
   SettingsWindow.xaml   Fenêtre de réglages
   Settings/             Modèle et enregistrement des réglages
   Controls/             Courbe de ressort, texte défilant, égaliseur, jauges, icônes météo
   Widgets/              Média, météo, volume et batterie, AirPods
   Services/             GSMTC, Core Audio, Bluetooth, météo, écrans, démarrage auto, icône de notification
   Interop/              Déclarations Win32 et COM
+tests/Dynamic-Island.Tests/  Tests des services
 ```
 
 ## Choix techniques

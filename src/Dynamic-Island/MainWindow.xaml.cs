@@ -60,6 +60,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _trimTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private readonly DispatcherTimer _bannerTimer = new();
     private readonly DispatcherTimer _fullscreenTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _trackBannerTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly Dictionary<string, FrameworkElement> _pageViews;
     private readonly List<string> _visiblePages = [];
     private readonly SettingsStore _settings = App.Settings;
@@ -67,6 +68,7 @@ public partial class MainWindow : Window
     private string? _currentPage;
     private bool _isExpanded;
     private bool _isBannerVisible;
+    private bool _isTrackBannerVisible;
     private bool _isBannerPressed;
     private Action? _bannerClick; // Non nul : le survol maintient la bannière, et le clic exécute cette action.
     private readonly Queue<Action> _bannerQueue = new();
@@ -161,6 +163,9 @@ public partial class MainWindow : Window
         Deactivated += (_, _) => EndTyping();
         Closed += (_, _) => NotePanel.Save();
         MediaPanel.Service.Changed += OnMediaChanged;
+        MediaPanel.Service.TrackChanged += OnTrackChanged;
+        _trackBannerTimer.Tick += (_, _) => ShowTrackBanner();
+        App.Updates.UpdateReady += OnUpdateReady;
         MailPanel.UnreadChanged += () =>
         {
             UpdateCompactIndicators();
@@ -209,6 +214,7 @@ public partial class MainWindow : Window
         UpdateCompactIndicators();
         UpdateHotkeyRegistration();
         CheckPowerStatus();
+        App.Updates.SetAutomatic(settings.AutoUpdateEnabled);
         if (settings.PrivacyIndicatorsEnabled)
         {
             _privacyIndicators.Start();
@@ -341,8 +347,16 @@ public partial class MainWindow : Window
         }
         _isWheelGestureConsumed = true;
 
-        var direction = _wheelGestureDelta < 0 ? 1 : -1;
-        // Les pages forment une boucle dans les deux sens, à raison d'une seule page par geste.
+        ShowRelativePage(_wheelGestureDelta < 0 ? 1 : -1);
+    }
+
+    // Les pages forment une boucle dans les deux sens.
+    private void ShowRelativePage(int direction)
+    {
+        if (!_isExpanded || _visiblePages.Count < 2 || _currentPage is null)
+        {
+            return;
+        }
         var index = (_visiblePages.IndexOf(_currentPage) + direction + _visiblePages.Count) % _visiblePages.Count;
         ShowPage(_visiblePages[index], direction);
     }
@@ -406,68 +420,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowBanner(bool isConnected)
-    {
-        BannerNameText.Text = AirPodsPanel.DeviceName;
-        BannerStatusText.Text = isConnected ? "Connectés" : "Déconnectés";
-        BannerRings.Update(isConnected ? AirPodsPanel.Battery : null);
-        BannerRings.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
-        BannerExtraText.Visibility = Visibility.Collapsed;
-        BannerAirPodsIcon.Visibility = Visibility.Visible;
-        BannerMailMark.Visibility = Visibility.Collapsed;
-        AirPodsPanel.IsBannerWatching = isConnected;
-        _bannerClick = null;
-        PresentBanner(AirPodsBannerDuration);
-    }
-
-    /// <summary>Affiche la bannière tout de suite si la capsule est libre, sinon après les précédentes.</summary>
-    private void ShowOrQueueBanner(Action show)
-    {
-        if (!_isExpanded && !_isBannerVisible)
-        {
-            show();
-            return;
-        }
-        if (_bannerQueue.Count >= MaxQueuedBanners)
-        {
-            _bannerQueue.Dequeue(); // Tout reste consultable dans le centre de notifications (Win + N).
-        }
-        _bannerQueue.Enqueue(show);
-    }
-
-    private void ShowNextQueuedBanner()
-    {
-        if (!_isExpanded && !_isBannerVisible && !_isHiddenForFullscreen && _bannerQueue.TryDequeue(out var show))
-        {
-            show();
-        }
-    }
-
-    // --- Bannières d'information : minuteur et batterie ---
-
-    private void ShowInfoBanner(string glyph, string title, string status)
-    {
-        if (_isHiddenForFullscreen)
-        {
-            return;
-        }
-        ShowOrQueueBanner(() =>
-        {
-            BannerNameText.Text = title;
-            BannerStatusText.Text = status;
-            BannerMailLetter.Text = glyph;
-            BannerMailLetter.FontFamily = (FontFamily)FindResource("IconFont");
-            BannerMailLetter.Visibility = Visibility.Visible;
-            BannerAppIcon.Source = null;
-            BannerAirPodsIcon.Visibility = Visibility.Collapsed;
-            BannerMailMark.Visibility = Visibility.Visible;
-            BannerRings.Visibility = Visibility.Collapsed;
-            BannerExtraText.Visibility = Visibility.Collapsed;
-            AirPodsPanel.IsBannerWatching = false;
-            _bannerClick = () => { };
-            PresentBanner(MailBannerDuration);
-        });
-    }
 
     private bool IsInFocusMode => _settings.Current.FocusWithTimerEnabled && TimerPanel.Service.IsActive;
 
@@ -628,181 +580,7 @@ public partial class MainWindow : Window
         NativeMethods.SetWindowLongPtr(_hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(style));
     }
 
-    // --- Raccourci clavier global ---
 
-    private void UpdateHotkeyRegistration()
-    {
-        if (_hwnd == IntPtr.Zero)
-        {
-            return; // Refait dans OnSourceInitialized.
-        }
-        var isWanted = _settings.Current.GlobalHotkeyEnabled;
-        if (isWanted && !_isHotkeyRegistered)
-        {
-            _isHotkeyRegistered = NativeMethods.RegisterHotKey(_hwnd, HotkeyId,
-                NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT | NativeMethods.MOD_NOREPEAT, HotkeyVirtualKey);
-        }
-        else if (!isWanted && _isHotkeyRegistered)
-        {
-            NativeMethods.UnregisterHotKey(_hwnd, HotkeyId);
-            _isHotkeyRegistered = false;
-        }
-        App.IsHotkeyRegistered = _isHotkeyRegistered;
-    }
-
-    private void ToggleFromHotkey()
-    {
-        if (_isHiddenForFullscreen)
-        {
-            return;
-        }
-        _expandTimer.Stop();
-        _collapseTimer.Stop();
-        if (_isExpanded)
-        {
-            _isPinned = false;
-            PinGlyph.Text = "";
-            PinGlyph.Foreground = (Brush)FindResource("TextSecondaryBrush");
-            EndTyping();
-            Collapse();
-        }
-        else
-        {
-            // Reste ouverte sans la souris : aucun MouseLeave ne viendra la refermer.
-            Expand();
-        }
-    }
-
-    // --- Bannière de notification Windows ---
-
-    private void OnSystemNotificationReceived(SystemNotification notification)
-    {
-        if (IsInFocusMode)
-        {
-            _missedDuringFocus++;
-            return;
-        }
-        // Plein écran : ne pas déranger. La notification reste dans le centre de notifications.
-        if (!_isHiddenForFullscreen)
-        {
-            ShowOrQueueBanner(() => ShowSystemNotificationBanner(notification));
-        }
-    }
-
-    private void ShowSystemNotificationBanner(SystemNotification notification)
-    {
-        BannerNameText.Text = notification.Title;
-        BannerStatusText.Text = notification.Body.Length > 0 ? $"{notification.AppName} · {notification.Body}" : notification.AppName;
-        BannerMailLetter.Text = notification.AppName[..1].ToUpperInvariant();
-        BannerMailLetter.FontFamily = FontFamily;
-        BannerMailLetter.Visibility = notification.Icon is null ? Visibility.Visible : Visibility.Collapsed;
-        BannerAppIcon.Source = notification.Icon;
-        BannerAirPodsIcon.Visibility = Visibility.Collapsed;
-        BannerMailMark.Visibility = Visibility.Visible;
-        BannerRings.Visibility = Visibility.Collapsed;
-        BannerExtraText.Visibility = Visibility.Collapsed;
-        AirPodsPanel.IsBannerWatching = false;
-        // Windows ne donne pas accès aux boutons de la notification : le clic ouvre l'application.
-        _bannerClick = () => AppIconService.OpenApp(notification.AppId);
-        PresentBanner(MailBannerDuration);
-    }
-
-    // --- Bannière de nouveau mail ---
-
-    private void OnNewMailReceived(MailNotification notification)
-    {
-        if (IsInFocusMode)
-        {
-            _missedDuringFocus++;
-            return;
-        }
-        // Panneau ouvert : la page Mails et le compteur affichent déjà l'information.
-        if (_settings.Current.MailBannerEnabled && !_isExpanded && !_isHiddenForFullscreen)
-        {
-            ShowOrQueueBanner(() => ShowMailBanner(notification));
-        }
-    }
-
-    private void ShowMailBanner(MailNotification notification)
-    {
-        var item = notification.Item;
-        var label = notification.Provider == MailProvider.Gmail ? "Gmail" : "Outlook";
-        BannerNameText.Text = string.IsNullOrWhiteSpace(item.Sender) ? label : item.Sender;
-        BannerStatusText.Text = string.IsNullOrWhiteSpace(item.Subject) ? "(sans objet)" : item.Subject;
-        BannerMailLetter.Text = label[..1];
-        BannerMailLetter.FontFamily = FontFamily;
-        BannerMailLetter.Visibility = Visibility.Visible;
-        BannerAppIcon.Source = null;
-        BannerAirPodsIcon.Visibility = Visibility.Collapsed;
-        BannerMailMark.Visibility = Visibility.Visible;
-        BannerRings.Visibility = Visibility.Collapsed;
-        BannerExtraText.Text = "+" + notification.OtherCount.ToString(CultureInfo.InvariantCulture);
-        BannerExtraText.Visibility = notification.OtherCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-        AirPodsPanel.IsBannerWatching = false;
-        var url = item.OpenUrl;
-        _bannerClick = () =>
-        {
-            if (url is not null)
-            {
-                App.Mail.OpenInBrowser(url);
-            }
-        };
-        PresentBanner(MailBannerDuration);
-    }
-
-    private void BannerPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        // Géré ici : ce clic agit sur la bannière, il ne doit ni verrouiller ni déplacer la capsule.
-        if (_bannerClick is not null)
-        {
-            _isBannerPressed = true;
-            e.Handled = true;
-        }
-    }
-
-    private void BannerPanel_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_isBannerPressed && _bannerClick is { } click)
-        {
-            e.Handled = true;
-            click();
-            Collapse();
-        }
-        _isBannerPressed = false;
-    }
-
-    private void PresentBanner(TimeSpan displayDuration)
-    {
-        _trimTimer.Stop();
-        _bannerTimer.Stop();
-        _bannerTimer.Interval = displayDuration;
-        _bannerTimer.Start();
-        if (_isBannerVisible)
-        {
-            return;
-        }
-        _isBannerVisible = true;
-        UpdateCompactIndicators();
-
-        BannerPanel.Visibility = Visibility.Visible;
-        var duration = TimeSpan.FromMilliseconds(380);
-        var spring = new SpringEase();
-        Animate(Capsule, WidthProperty, BannerWidth, duration, spring);
-        Animate(Capsule, HeightProperty, BannerHeight, duration, spring);
-        Animate(this, CapsuleRadiusProperty, BannerRadius, duration, null);
-        Animate(CompactContent, OpacityProperty, 0, TimeSpan.FromMilliseconds(90), null);
-        Animate(BannerPanel, OpacityProperty, 1, TimeSpan.FromMilliseconds(220), null, TimeSpan.FromMilliseconds(90));
-    }
-
-    private void HideBannerContent()
-    {
-        _isBannerVisible = false;
-        _isBannerPressed = false;
-        _bannerClick = null;
-        _bannerTimer.Stop();
-        AirPodsPanel.IsBannerWatching = false;
-        Animate(BannerPanel, OpacityProperty, 0, TimeSpan.FromMilliseconds(100), null);
-    }
 
     private void UpdateCompactIndicators()
     {
@@ -987,6 +765,7 @@ public partial class MainWindow : Window
         }
         _isExpanded = true;
         _trimTimer.Stop();
+        SetPageHotkeys(true);
         if (_isBannerVisible)
         {
             HideBannerContent();
@@ -1012,6 +791,7 @@ public partial class MainWindow : Window
     private void Collapse()
     {
         _isExpanded = false;
+        SetPageHotkeys(false);
         if (_isBannerVisible)
         {
             HideBannerContent();
@@ -1075,10 +855,15 @@ public partial class MainWindow : Window
             // Différé : WPF applique d'abord sa propre mise à l'échelle.
             Dispatcher.BeginInvoke(PositionOnTargetScreen, DispatcherPriority.Loaded);
         }
-        else if (msg == NativeMethods.WM_HOTKEY && wParam.ToInt32() == HotkeyId)
+        else if (msg == NativeMethods.WM_HOTKEY)
         {
-            ToggleFromHotkey();
+            OnHotkey(wParam.ToInt32());
             handled = true;
+        }
+        else if (msg == NativeMethods.WM_SETTINGCHANGE && lParam != IntPtr.Zero
+            && Marshal.PtrToStringUni(lParam) == "ImmersiveColorSet" && ThemeService.NeedsRestart(_settings.Current))
+        {
+            App.RestartToApplyTheme(reopenSettings: false); // Le thème de Windows vient de changer.
         }
         else if (msg == NativeMethods.WM_POWERBROADCAST && wParam.ToInt32() == NativeMethods.PBT_APMPOWERSTATUSCHANGE)
         {

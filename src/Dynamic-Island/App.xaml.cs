@@ -11,6 +11,7 @@ public partial class App : Application
     private const string ReopenSettingsArgument = "--settings";
 
     private bool _isRestarting;
+    private bool _reopenSettingsAfterRestart;
     private Mutex? _singleInstance;
     private TrayIcon? _tray;
     private SettingsWindow? _settingsWindow;
@@ -20,11 +21,19 @@ public partial class App : Application
 
     internal static MailService Mail { get; set; } = new();
 
+    internal static UpdateService Updates { get; } = new();
+
     internal static bool IsHotkeyRegistered { get; set; }
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        DispatcherUnhandledException += (_, args) =>
+        {
+            // Une capsule qui disparaît sans prévenir est pire qu'une page qui ne répond plus : on note l'erreur et on continue.
+            AppLog.Write(args.Exception, "Erreur non gérée");
+            args.Handled = true;
+        };
 
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\Dynamic-Island.SingleInstance", out var isFirstInstance);
         if (!isFirstInstance)
@@ -47,13 +56,14 @@ public partial class App : Application
         }
     }
 
-    /// <summary>Relance l'application, réglages rouverts : le changement de thème vient toujours de cette fenêtre.</summary>
-    internal static void RestartToApplyTheme()
+    /// <summary>Relance l'application. Les réglages sont rouverts si le changement de thème vient de leur fenêtre.</summary>
+    internal static void RestartToApplyTheme(bool reopenSettings = true)
     {
         var app = (App)Current;
         if (!app._isRestarting)
         {
             app._isRestarting = true;
+            app._reopenSettingsAfterRestart = reopenSettings;
             app.Dispatcher.BeginInvoke(() => app.Shutdown());
         }
     }
@@ -80,7 +90,7 @@ public partial class App : Application
         // Après la libération de l'instance unique : sinon, la nouvelle copie se fermerait aussitôt.
         if (_isRestarting && Environment.ProcessPath is { } path)
         {
-            System.Diagnostics.Process.Start(path, ReopenSettingsArgument);
+            System.Diagnostics.Process.Start(path, _reopenSettingsAfterRestart ? ReopenSettingsArgument : string.Empty);
         }
         base.OnExit(e);
     }

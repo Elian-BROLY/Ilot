@@ -44,8 +44,9 @@ internal sealed class AirPodsBatteryMonitor
         {
             _watcher.Start();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             _watcher = null; // Bluetooth désactivé : la jauge reste simplement masquée.
         }
     }

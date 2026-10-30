@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DynamicIsland</RootNamespace>
     <AssemblyName>Dynamic-Island</AssemblyName>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <StartupObject>DynamicIsland.Program</StartupObject>
     <Product>Dynamic-Island</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <PackageReference Include="Velopack" Version="1.2.161" />
+    <InternalsVisibleTo Include="Dynamic-Island.Tests" />
   </ItemGroup>
 
 </Project>

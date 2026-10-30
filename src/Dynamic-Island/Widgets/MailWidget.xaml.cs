@@ -17,6 +17,7 @@ public partial class MailWidget : UserControl
 
     private readonly Dictionary<MailProvider, MailRow> _rows = [];
     private readonly MailListView _list;
+    private readonly Dictionary<MailProvider, MailSummary> _lastSummaries = [];
     private readonly NewMailDetector _detector = new();
     private readonly DispatcherTimer _pollTimer = new(DispatcherPriority.Background) { Interval = PollInterval };
     private DateTime _lastRefreshUtc = DateTime.MinValue;
@@ -103,16 +104,19 @@ public partial class MailWidget : UserControl
             if (!isEnabled)
             {
                 _detector.Reset(provider);
+                _lastSummaries.Remove(provider);
                 continue;
             }
             if (!App.Mail.IsConnected(provider))
             {
                 _detector.Reset(provider);
+                _lastSummaries.Remove(provider);
                 _rows[provider].ShowDisconnected();
                 continue;
             }
             anyPolled = true;
-            var summary = await App.Mail.GetSummaryAsync(provider);
+            var summary = (await App.Mail.GetSummaryAsync(provider)).KeepingContentOf(_lastSummaries.GetValueOrDefault(provider));
+            _lastSummaries[provider] = summary;
             if (provider == listed)
             {
                 _list.Show(provider, summary);
@@ -327,6 +331,7 @@ public partial class MailWidget : UserControl
             _index = kept >= 0 ? kept : Math.Min(_index, Math.Max(0, _items.Count - 1));
 
             _emptyMessage = summary.Error ?? "Aucun message non lu";
+            _background.ToolTip = _items.Count > 0 ? summary.Error : null; // Les derniers mails restent affichés.
             _countBadge.Visibility = summary.Unread > 0 ? Visibility.Visible : Visibility.Collapsed;
             _countText.Text = summary.Unread > 999 ? "999+" : summary.Unread.ToString(CultureInfo.InvariantCulture);
             Render();

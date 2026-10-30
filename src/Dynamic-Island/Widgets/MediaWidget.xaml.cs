@@ -25,7 +25,15 @@ public partial class MediaWidget : UserControl
         _progressTimer.Tick += (_, _) => RenderProgress();
         IsVisibleChanged += (_, _) => UpdateProgressTimer();
         Render();
+        App.Settings.Changed += ApplyPreferences;
+        ApplyPreferences();
         _ = Service.InitializeAsync();
+    }
+
+    private void ApplyPreferences()
+    {
+        var settings = App.Settings.Current;
+        Service.SetPreferences(settings.PreferredPlayer, settings.ShowPlayingOverPausedPreferred);
     }
 
     internal MediaService Service { get; }

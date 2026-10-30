@@ -42,8 +42,9 @@ public partial class AppVolumeWidget : UserControl
         {
             apps = (await AppVolumeService.ListAsync()).Take(MaxRows).ToList();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             return; // Sortie audio en train de changer : nouvel essai au prochain passage.
         }
 

@@ -8,7 +8,7 @@ using Windows.Storage.Streams;
 namespace DynamicIsland.Services;
 
 /// <summary>
-/// Suit une session média du système via GSMTC : celle choisie à la main, sinon Deezer, sinon la session courante de Windows.
+/// Suit une session média du système via GSMTC : celle choisie à la main, sinon le lecteur préféré, sinon la session courante de Windows.
 /// <see cref="Changed"/> est levé sur le thread UI.
 /// </summary>
 internal sealed class MediaService
@@ -16,7 +16,6 @@ internal sealed class MediaService
     private const int ThumbnailDecodeWidth = 176; // 88 DIP en 200 %
     private const int HueBuckets = 12;
     private const double MinimumTintWeight = 0.08; // En dessous, la pochette est trop grise pour teinter la capsule.
-    private const string PreferredSource = "deezer";
 
     // Windows n'indique que l'application : un site ouvert dans un navigateur porte le nom du navigateur.
     private static readonly (string Fragment, string Name)[] KnownSources =
@@ -37,6 +36,9 @@ internal sealed class MediaService
     ];
 
     private readonly Dispatcher _dispatcher;
+    private readonly TrackChangeDetector _trackChanges = new();
+    private string _preferredSource = string.Empty;
+    private bool _showPlayingOverPausedPreferred;
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private GlobalSystemMediaTransportControlsSession? _session;
     private List<(string Id, GlobalSystemMediaTransportControlsSession Session)> _sources = [];
@@ -51,6 +53,10 @@ internal sealed class MediaService
 
     public event Action? Changed;
 
+    /// <summary>Levé quand le lecteur affiché passe à un autre morceau, pas quand on change de lecteur.</summary>
+    public event Action? TrackChanged;
+
+    public bool IsPreferredSourceShown => _preferredSource.Length == 0 || (_sourceId is not null && IsPreferred(_sourceId, _preferredSource));
     public bool HasSession { get; private set; }
     public int SourceCount => _sources.Count;
     public string SourceName => _sourceId is null ? string.Empty : GetSourceName(_sourceId);
@@ -87,8 +93,9 @@ internal sealed class MediaService
         {
             _manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             return; // GSMTC indisponible : le widget reste sur son état vide.
         }
         _manager.CurrentSessionChanged += (_, _) => _dispatcher.InvokeAsync(AttachPreferredSession);
@@ -106,18 +113,49 @@ internal sealed class MediaService
         }
     }
 
-    /// <summary>Priorité : le choix manuel s'il est encore ouvert, puis Deezer, puis la session courante de Windows.</summary>
-    internal static string? ChooseSource(IReadOnlyList<string> ids, string? manualId, string? currentId)
+    public void SetPreferences(string preferredSource, bool showPlayingOverPausedPreferred)
+    {
+        if (preferredSource == _preferredSource && showPlayingOverPausedPreferred == _showPlayingOverPausedPreferred)
+        {
+            return;
+        }
+        _preferredSource = preferredSource;
+        _showPlayingOverPausedPreferred = showPlayingOverPausedPreferred;
+        if (_manager is not null)
+        {
+            AttachPreferredSession();
+        }
+    }
+
+    /// <summary>
+    /// Priorité : le choix manuel s'il est encore ouvert, puis le lecteur préféré, puis la session courante de Windows.
+    /// Avec <paramref name="playingIds"/>, un lecteur préféré en pause cède sa place à celui qui joue.
+    /// </summary>
+    internal static string? ChooseSource(IReadOnlyList<string> ids, string? manualId, string? currentId, string preferredSource,
+        IReadOnlyCollection<string>? playingIds = null)
     {
         if (manualId is not null && ids.Contains(manualId))
         {
             return manualId;
         }
-        if (ids.FirstOrDefault(IsPreferred) is { } preferred)
+
+        var preferred = ids.FirstOrDefault(id => IsPreferred(id, preferredSource));
+        if (preferred is not null && (playingIds is not { Count: > 0 } || playingIds.Contains(preferred)))
         {
             return preferred;
         }
-        return currentId is not null && ids.Contains(currentId) ? currentId : ids.FirstOrDefault();
+        if (playingIds is { Count: > 0 })
+        {
+            if (currentId is not null && playingIds.Contains(currentId) && ids.Contains(currentId))
+            {
+                return currentId;
+            }
+            if (ids.FirstOrDefault(playingIds.Contains) is { } playing)
+            {
+                return playing;
+            }
+        }
+        return preferred ?? (currentId is not null && ids.Contains(currentId) ? currentId : ids.FirstOrDefault());
     }
 
     internal static string GetSourceName(string id)
@@ -133,7 +171,8 @@ internal sealed class MediaService
         return application.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? application[..^4] : application;
     }
 
-    private static bool IsPreferred(string id) => id.Contains(PreferredSource, StringComparison.OrdinalIgnoreCase);
+    private static bool IsPreferred(string id, string preferredSource) =>
+        preferredSource.Length > 0 && id.Contains(preferredSource, StringComparison.OrdinalIgnoreCase);
 
     private int NextSourceIndex => (_sources.FindIndex(source => source.Id == _sourceId) + 1) % _sources.Count;
 
@@ -158,8 +197,9 @@ internal sealed class MediaService
             {
                 await command(session);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                AppLog.Write(ex);
                 // La session a pu disparaître entre le clic et l'envoi : CurrentSessionChanged mettra l'état à jour.
             }
         }
@@ -173,6 +213,10 @@ internal sealed class MediaService
             _session.PlaybackInfoChanged -= OnPlaybackInfoChanged;
             _session.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
         }
+        foreach (var (_, session) in _sources)
+        {
+            session.PlaybackInfoChanged -= OnAnySourcePlaybackChanged;
+        }
 
         _sources = ReadSources();
         var ids = _sources.ConvertAll(source => source.Id);
@@ -180,8 +224,12 @@ internal sealed class MediaService
         {
             _manualSourceId = null; // Le lecteur choisi a été fermé : retour au choix par défaut.
         }
-        _sourceId = ChooseSource(ids, _manualSourceId, ReadCurrentSourceId());
+        _sourceId = ChooseCurrentSource(ids);
         _session = _sourceId is null ? null : _sources.Find(source => source.Id == _sourceId).Session;
+        foreach (var (_, session) in _sources)
+        {
+            session.PlaybackInfoChanged += OnAnySourcePlaybackChanged;
+        }
         if (_session is not null)
         {
             _session.MediaPropertiesChanged += OnMediaPropertiesChanged;
@@ -211,15 +259,49 @@ internal sealed class MediaService
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             // Session fermée pendant la lecture de la liste : SessionsChanged relancera la lecture.
         }
-        sources.Sort((a, b) => IsPreferred(a.Id) != IsPreferred(b.Id)
-            ? IsPreferred(a.Id) ? -1 : 1
+        sources.Sort((a, b) => IsPreferred(a.Id, _preferredSource) != IsPreferred(b.Id, _preferredSource)
+            ? IsPreferred(a.Id, _preferredSource) ? -1 : 1
             : string.CompareOrdinal(a.Id, b.Id));
         return sources;
     }
+
+    private string? ChooseCurrentSource(IReadOnlyList<string> ids) =>
+        ChooseSource(ids, _manualSourceId, ReadCurrentSourceId(), _preferredSource, _showPlayingOverPausedPreferred ? ReadPlayingIds() : null);
+
+    private List<string> ReadPlayingIds()
+    {
+        var playing = new List<string>();
+        foreach (var (id, session) in _sources)
+        {
+            try
+            {
+                if (session.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                {
+                    playing.Add(id);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write(ex);
+                // Session fermée pendant la lecture de son état.
+            }
+        }
+        return playing;
+    }
+
+    private void OnAnySourcePlaybackChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args) =>
+        _dispatcher.InvokeAsync(() =>
+        {
+            if (_showPlayingOverPausedPreferred && ChooseCurrentSource(_sources.ConvertAll(source => source.Id)) != _sourceId)
+            {
+                AttachPreferredSession();
+            }
+        });
 
     private string? ReadCurrentSourceId()
     {
@@ -227,8 +309,9 @@ internal sealed class MediaService
         {
             return _manager?.GetCurrentSession()?.SourceAppUserModelId;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             return null; // Session fermée pendant la lecture de son état.
         }
     }
@@ -262,8 +345,9 @@ internal sealed class MediaService
                 CanSeek = info.Controls.IsPlaybackPositionEnabled;
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             // Session fermée pendant la lecture de son état.
         }
         Changed?.Invoke();
@@ -282,8 +366,9 @@ internal sealed class MediaService
                 _positionTimestamp = timeline.LastUpdatedTime;
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            AppLog.Write(ex);
             // Session fermée pendant la lecture de son état.
         }
         Changed?.Invoke();
@@ -309,8 +394,9 @@ internal sealed class MediaService
                     (thumbnail, dominantColor) = await Task.Run(() => DecodeThumbnailAsync(reference));
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                AppLog.Write(ex);
                 // Certaines applications ferment la session pendant la requête : on garde l'état vide.
             }
         }
@@ -323,7 +409,12 @@ internal sealed class MediaService
         Artist = artist;
         Thumbnail = thumbnail;
         DominantColor = dominantColor;
+        var isNewTrack = _trackChanges.Update(_sourceId, artist, title);
         Changed?.Invoke();
+        if (isNewTrack)
+        {
+            TrackChanged?.Invoke();
+        }
     }
 
     private static async Task<(BitmapSource Image, Color? DominantColor)> DecodeThumbnailAsync(IRandomAccessStreamReference reference)

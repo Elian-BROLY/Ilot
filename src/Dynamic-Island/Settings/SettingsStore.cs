@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using DynamicIsland.Services;
 
 namespace DynamicIsland.Settings;
 
@@ -51,7 +52,15 @@ internal sealed class AppSettings
     public bool FocusWithTimerEnabled { get; set; } = true;
     public bool NetworkAlertsEnabled { get; set; } = true;
     public bool LightTheme { get; set; }
+    /// <summary>Vrai : le thème suit celui de Windows, et <see cref="LightTheme"/> est ignoré.</summary>
+    public bool FollowSystemTheme { get; set; }
     public string AccentName { get; set; } = "Bleu";
+    /// <summary>Fragment de l'identifiant du lecteur à afficher en priorité (« deezer »). Vide : le lecteur désigné par Windows.</summary>
+    public string PreferredPlayer { get; set; } = "deezer";
+    /// <summary>Vrai : si le lecteur préféré est en pause alors qu'un autre joue, c'est l'autre qui s'affiche.</summary>
+    public bool ShowPlayingOverPausedPreferred { get; set; }
+    public bool TrackBannerEnabled { get; set; } = true;
+    public bool AutoUpdateEnabled { get; set; } = true;
     /// <summary>Échelle de la capsule : 0,85 petite, 1 normale, 1,15 grande.</summary>
     public double CapsuleScale { get; set; } = 1;
 }
@@ -109,8 +118,7 @@ internal sealed class SettingsStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(Current, JsonOptions));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(Current, JsonOptions));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
