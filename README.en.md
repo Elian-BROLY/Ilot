@@ -26,6 +26,8 @@ Download `Ilot-win-Setup.exe` from [Releases](https://github.com/Elian-BROLY/Ilo
 
 The app is not code-signed yet. Windows may show a SmartScreen warning, and **Smart App Control**, if enabled, may refuse to run a given version.
 
+Clicking the notification area icon, or launching Ilot again while it is running, opens the settings. Uninstalling removes autostart, mail credentials, settings and the log. Only the note stays, in `%APPDATA%\Ilot\note.txt`.
+
 ## Privacy
 
 Ilot only shows the unread count, sender and subject of your mail. Deleting mail requires a broad permission (`gmail.modify`, `Mail.ReadWrite`), which technically gives access to the mailbox. Tokens are encrypted with DPAPI on your PC. The city name goes to Open-Meteo.

@@ -72,6 +72,10 @@ internal sealed class AppSettings
 /// <summary>Réglages de l'application, enregistrés dans %APPDATA%\Ilot\settings.json.</summary>
 internal sealed class SettingsStore
 {
+    private const double MinimumScale = 0.5;
+    private const double MaximumScale = 2;
+    private const double MaximumAnimationFactor = 5;
+    private const int MaximumDelayMs = 5000;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string _path = Path.Combine(
@@ -146,6 +150,16 @@ internal sealed class SettingsStore
         {
             settings.Pages[0].IsEnabled = true;
         }
-        settings.HorizontalPosition = Math.Clamp(settings.HorizontalPosition, 0, 1);
+        // Un fichier modifié à la main ne doit pas pouvoir rendre la capsule invisible ou faire planter ses animations.
+        settings.HorizontalPosition = double.IsFinite(settings.HorizontalPosition) ? Math.Clamp(settings.HorizontalPosition, 0, 1) : 0.5;
+        settings.CapsuleScale = double.IsFinite(settings.CapsuleScale) ? Math.Clamp(settings.CapsuleScale, MinimumScale, MaximumScale) : 1;
+        settings.AnimationDurationFactor = double.IsFinite(settings.AnimationDurationFactor) ? Math.Clamp(settings.AnimationDurationFactor, 0, MaximumAnimationFactor) : 1;
+        settings.ExpandDelayMs = Math.Clamp(settings.ExpandDelayMs, 0, MaximumDelayMs);
+        settings.CollapseDelayMs = Math.Clamp(settings.CollapseDelayMs, 0, MaximumDelayMs);
+        if (settings.Latitude is not (>= -90 and <= 90) || settings.Longitude is not (>= -180 and <= 180))
+        {
+            settings.Latitude = null;
+            settings.Longitude = null;
+        }
     }
 }

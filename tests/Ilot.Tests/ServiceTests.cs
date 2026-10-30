@@ -305,6 +305,89 @@ public sealed class MailServiceTests : IDisposable
         Assert.Single(summary.Items);
     }
 
+    // Répond comme Google : chaque jeton de rafraîchissement donne un jeton d'accès qui identifie son compte.
+    private sealed class FakeGoogle(string newAccount) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string body;
+            if (request.RequestUri!.Host == "oauth2.googleapis.com")
+            {
+                var form = await request.Content!.ReadAsStringAsync(cancellationToken);
+                body = form.Contains("grant_type=authorization_code")
+                    ? $"{{\"access_token\":\"{newAccount}\",\"expires_in\":3600,\"refresh_token\":\"r-new\"}}"
+                    : "{\"access_token\":\"premier@exemple.fr\",\"expires_in\":3600}";
+            }
+            else
+            {
+                body = $"{{\"emailAddress\":\"{request.Headers.Authorization!.Parameter}\"}}";
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        }
+    }
+
+    // Joue le navigateur : suit la redirection vers l'écoute locale, comme après une connexion réussie.
+    private static bool CompleteSignIn(string url)
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(url).Query);
+        var callback = $"{query["redirect_uri"]}?code=c&state={query["state"]}";
+        _ = Task.Run(async () =>
+        {
+            using var browser = new HttpClient();
+            await browser.GetStringAsync(callback);
+        });
+        return true;
+    }
+
+    private MailService CreateSecondAccountService(string account)
+    {
+        var service = new MailService(Path.Combine(_folder, "mail.dat"), new FakeGoogle(account)) { BrowserOpener = CompleteSignIn };
+        service.Credentials.GmailClientId = "id";
+        service.Credentials.GmailClientSecret = "secret";
+        service.Credentials.GmailRefreshToken = "r";
+        return service;
+    }
+
+    [Fact]
+    public async Task SameGmailAccountCannotBeConnectedTwice()
+    {
+        var service = CreateSecondAccountService("premier@exemple.fr");
+        var error = await service.ConnectAsync(MailProvider.Gmail2);
+        Assert.Contains("déjà connecté", error);
+        Assert.False(service.IsConnected(MailProvider.Gmail2));
+        Assert.True(service.IsConnected(MailProvider.Gmail));
+    }
+
+    [Fact]
+    public async Task DifferentGmailAccountIsConnected()
+    {
+        var service = CreateSecondAccountService("second@exemple.fr");
+        Assert.Null(await service.ConnectAsync(MailProvider.Gmail2));
+        Assert.True(service.IsConnected(MailProvider.Gmail2));
+    }
+
+    [Fact]
+    public async Task SignInCanBeCancelled()
+    {
+        var service = new MailService(Path.Combine(_folder, "mail.dat"), new FakeTransport(HttpStatusCode.OK, "{}")) { BrowserOpener = _ => true };
+        service.Credentials.OutlookClientId = "id";
+        using var cancellation = new CancellationTokenSource();
+
+        var connecting = service.ConnectAsync(MailProvider.Outlook, cancellation.Token);
+        cancellation.Cancel();
+
+        Assert.Equal("Connexion annulée.", await connecting.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(service.IsConnected(MailProvider.Outlook));
+    }
+
+    [Fact]
+    public async Task UnavailableBrowserIsReported()
+    {
+        var service = new MailService(Path.Combine(_folder, "mail.dat"), new FakeTransport(HttpStatusCode.OK, "{}")) { BrowserOpener = _ => false };
+        service.Credentials.OutlookClientId = "id";
+        Assert.Contains("navigateur", await service.ConnectAsync(MailProvider.Outlook));
+    }
+
     [Fact]
     public async Task RateLimitedTrashDoesNotAskToReconnect()
     {

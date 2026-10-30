@@ -230,7 +230,7 @@ internal sealed class MailService
     }
 
     /// <summary>Ouvre la page de connexion du service. Renvoie null en cas de succès, sinon un message d'erreur.</summary>
-    public async Task<string?> ConnectAsync(MailProvider provider)
+    public async Task<string?> ConnectAsync(MailProvider provider, CancellationToken cancellationToken = default)
     {
         var clientId = provider.IsGmail() ? Credentials.GmailClientId : Credentials.OutlookClientId;
         if (string.IsNullOrEmpty(clientId))
@@ -244,7 +244,15 @@ internal sealed class MailService
 
         try
         {
-            var error = await SignInAsync(provider, clientId);
+            var error = await SignInAsync(provider, clientId, cancellationToken);
+            if (error is null && await IsSameAsOtherGmailAccountAsync(provider))
+            {
+                SetRefreshToken(provider, null);
+                _accessTokens.Remove(provider);
+                _gmailAddresses.Remove(provider);
+                Save();
+                return "Ce compte Gmail est déjà connecté. Choisissez-en un autre.";
+            }
             if (error is null)
             {
                 AccountsChanged?.Invoke();
@@ -284,6 +292,37 @@ internal sealed class MailService
         }
     }
 
+    // Le même compte deux fois doublerait le compteur et les bannières. En cas de doute (réseau), la connexion est gardée.
+    private async Task<bool> IsSameAsOtherGmailAccountAsync(MailProvider provider)
+    {
+        var other = provider == MailProvider.Gmail ? MailProvider.Gmail2 : MailProvider.Gmail;
+        if (!provider.IsGmail() || !IsConnected(other))
+        {
+            return false;
+        }
+        try
+        {
+            var address = await GetGmailAddressAsync(provider, await GetAccessTokenAsync(provider));
+            var otherAddress = await GetGmailAddressAsync(other, await GetAccessTokenAsync(other));
+            return address is not null && string.Equals(address, otherAddress, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private async Task<string?> GetGmailAddressAsync(MailProvider provider, string? token)
+    {
+        if (!_gmailAddresses.TryGetValue(provider, out var address) && token is not null)
+        {
+            using var profile = await GetJsonAsync($"{GmailApi}/profile", token);
+            address = profile.RootElement.GetProperty("emailAddress").GetString();
+            _gmailAddresses[provider] = address;
+        }
+        return address;
+    }
+
     private async Task<MailSummary> ReadSummaryAsync(MailProvider provider)
     {
         var token = await GetAccessTokenAsync(provider);
@@ -310,7 +349,7 @@ internal sealed class MailService
         return response.StatusCode == HttpStatusCode.Forbidden && !IsRateLimitBody(await response.Content.ReadAsStringAsync());
     }
 
-    private async Task<string?> SignInAsync(MailProvider provider, string clientId)
+    private async Task<string?> SignInAsync(MailProvider provider, string clientId, CancellationToken cancellationToken)
     {
         var port = FindFreePort();
         var redirectUri = $"http://localhost:{port}/";
@@ -327,12 +366,17 @@ internal sealed class MailService
         using var listener = new HttpListener();
         listener.Prefixes.Add(redirectUri);
         listener.Start();
-        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-
         var pending = listener.GetContextAsync();
-        if (await Task.WhenAny(pending, Task.Delay(SignInTimeout)) != pending)
+        // Sans réponse, la fermeture de l'écoute fera échouer cette attente : ce n'est pas une erreur à journaliser.
+        _ = pending.ContinueWith(task => task.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        if (!BrowserOpener(url))
         {
-            return "Délai dépassé : connexion annulée.";
+            return "Ouverture du navigateur impossible.";
+        }
+
+        if (await Task.WhenAny(pending, Task.Delay(SignInTimeout, cancellationToken)) != pending)
+        {
+            return cancellationToken.IsCancellationRequested ? "Connexion annulée." : "Délai dépassé : connexion annulée.";
         }
 
         var context = await pending;
@@ -484,12 +528,7 @@ internal sealed class MailService
         }
 
         // L'adresse dans le lien ouvre le bon compte quand plusieurs sont connectés dans le navigateur.
-        if (!_gmailAddresses.TryGetValue(provider, out var address))
-        {
-            using var profile = await GetJsonAsync($"{GmailApi}/profile", token);
-            address = profile.RootElement.GetProperty("emailAddress").GetString();
-            _gmailAddresses[provider] = address;
-        }
+        var address = await GetGmailAddressAsync(provider, token);
 
         // Gmail ouvre des conversations : l'identifiant d'un message n'est valable que s'il est le premier de la sienne.
         var openUrl = $"https://mail.google.com/mail/?authuser={Uri.EscapeDataString(address ?? string.Empty)}#all/{item.ThreadId}";

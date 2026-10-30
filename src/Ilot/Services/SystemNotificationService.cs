@@ -27,6 +27,9 @@ internal sealed class SystemNotificationService
     private readonly DispatcherTimer _signalTimer = new(DispatcherPriority.Background) { Interval = SignalCheckInterval };
     private readonly FileInfo _signalFile = new(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "Notifications", "wpndatabase.db-wal"));
+    // L'autorisation se donne dans les Paramètres de Windows, qui ne préviennent pas l'application.
+    private readonly DispatcherTimer _accessRetryTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(1) };
+    private bool _isWanted;
     private (long Length, DateTime LastWrite) _lastSignal;
     private HashSet<uint>? _known;
     private bool _isPolling;
@@ -35,6 +38,7 @@ internal sealed class SystemNotificationService
     {
         _pollTimer.Tick += async (_, _) => await PollAsync();
         _signalTimer.Tick += async (_, _) => await CheckSignalAsync();
+        _accessRetryTimer.Tick += async (_, _) => await RetryAfterAccessGrantedAsync();
     }
 
     /// <summary>Levé sur le thread UI, une fois par nouvelle notification, de la plus ancienne à la plus récente.</summary>
@@ -55,10 +59,24 @@ internal sealed class SystemNotificationService
 
     public async Task StartAsync()
     {
-        if (_pollTimer.IsEnabled || !await RequestAccessAsync())
+        _isWanted = true;
+        if (_pollTimer.IsEnabled)
         {
             return;
         }
+        if (!await RequestAccessAsync())
+        {
+            if (_isWanted)
+            {
+                _accessRetryTimer.Start();
+            }
+            return;
+        }
+        if (!_isWanted || _pollTimer.IsEnabled)
+        {
+            return; // Désactivé, ou déjà démarré, pendant la demande d'accès.
+        }
+        _accessRetryTimer.Stop();
         _lastSignal = ReadSignal();
         _pollTimer.Interval = _signalFile.Exists ? SlowPollInterval : FastPollInterval;
         _pollTimer.Start();
@@ -66,8 +84,27 @@ internal sealed class SystemNotificationService
         await PollAsync(); // Référence prise tout de suite : une notification reçue juste après ne s'y fondrait pas.
     }
 
+    // GetAccessStatus n'affiche aucune demande à l'utilisateur, contrairement à RequestAccessAsync.
+    private async Task RetryAfterAccessGrantedAsync()
+    {
+        try
+        {
+            if (UserNotificationListener.Current.GetAccessStatus() == UserNotificationListenerAccessStatus.Allowed)
+            {
+                await StartAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write(ex);
+            _accessRetryTimer.Stop();
+        }
+    }
+
     public void Stop()
     {
+        _isWanted = false;
+        _accessRetryTimer.Stop();
         _pollTimer.Stop();
         _signalTimer.Stop();
         _known = null; // À la reprise, celles reçues entre-temps ne sont pas annoncées.

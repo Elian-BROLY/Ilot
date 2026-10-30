@@ -1,5 +1,26 @@
 namespace Ilot.Services;
 
+/// <summary>
+/// Les annonces Bluetooth des AirPods sont anonymes : une lecture faible isolée peut venir d'une paire voisine. Elle n'est
+/// retenue qu'après plusieurs lectures faibles de suite. Cela réduit les fausses alertes sans pouvoir les exclure.
+/// </summary>
+internal sealed class ConsecutiveLowReadings(int threshold, int required)
+{
+    private int _count;
+
+    /// <summary>Faux tant qu'une lecture faible n'est pas confirmée. Une lecture au-dessus du seuil est toujours retenue.</summary>
+    public bool IsTrusted(int percent)
+    {
+        if (percent > threshold)
+        {
+            _count = 0;
+            return true;
+        }
+        _count++;
+        return _count >= required;
+    }
+}
+
 /// <summary>Décide quand signaler une batterie faible : une seule alerte par seuil franchi, jusqu'à la prochaine recharge.</summary>
 internal sealed class BatteryAlertPolicy(params int[] thresholds)
 {

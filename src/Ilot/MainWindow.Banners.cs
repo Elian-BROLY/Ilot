@@ -53,7 +53,7 @@ public partial class MainWindow
     /// <summary>Affiche la bannière tout de suite si la capsule est libre, sinon après les précédentes.</summary>
     private void ShowOrQueueBanner(Action show)
     {
-        if (!_isExpanded && !_isBannerVisible)
+        if (!_isExpanded && !_isBannerVisible && !_isHiddenForFullscreen)
         {
             show();
             return;
@@ -75,9 +75,10 @@ public partial class MainWindow
 
     // --- Bannières d'information : minuteur, batterie, mise à jour ---
 
-    private void ShowInfoBanner(string glyph, string title, string status, Action? click = null)
+    /// <param name="keepAfterFullscreen">Vrai : en plein écran, la bannière attend la sortie au lieu d'être abandonnée.</param>
+    private void ShowInfoBanner(string glyph, string title, string status, Action? click = null, bool keepAfterFullscreen = false)
     {
-        if (_isHiddenForFullscreen)
+        if (_isHiddenForFullscreen && !keepAfterFullscreen)
         {
             return;
         }

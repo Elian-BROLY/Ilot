@@ -27,12 +27,20 @@ public partial class SettingsWindow : Window
 
     private readonly SettingsStore _store = App.Settings;
     private readonly DispatcherTimer _delaySaveTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    private readonly Dictionary<MailProvider, CancellationTokenSource> _signIns = [];
     private bool _isLoading = true;
 
     public SettingsWindow()
     {
         _delaySaveTimer.Tick += (_, _) => SaveDelays();
-        Closed += (_, _) => SaveDelays();
+        Closed += (_, _) =>
+        {
+            SaveDelays();
+            foreach (var signIn in _signIns.Values)
+            {
+                signIn.Cancel();
+            }
+        };
         var settings = _store.Current;
         // Fenêtre classique : elle suit le thème de la capsule avec les contrôles natifs de Windows 11.
 #pragma warning disable WPF0001
@@ -362,11 +370,13 @@ public partial class SettingsWindow : Window
 
     private void RenderMailAccounts()
     {
-        var mail = App.Mail;
-        OutlookButton.Content = mail.IsConnected(MailProvider.Outlook) ? "Déconnecter" : "Connecter";
-        GmailButton.Content = mail.IsConnected(MailProvider.Gmail) ? "Déconnecter" : "Connecter";
-        Gmail2Button.Content = mail.IsConnected(MailProvider.Gmail2) ? "Déconnecter" : "Connecter";
+        OutlookButton.Content = MailButtonLabel(MailProvider.Outlook);
+        GmailButton.Content = MailButtonLabel(MailProvider.Gmail);
+        Gmail2Button.Content = MailButtonLabel(MailProvider.Gmail2);
     }
+
+    private string MailButtonLabel(MailProvider provider) =>
+        _signIns.ContainsKey(provider) ? "Annuler" : App.Mail.IsConnected(provider) ? "Déconnecter" : "Connecter";
 
     private async void OutlookButton_Click(object sender, RoutedEventArgs e) =>
         await ToggleMailAccountAsync(MailProvider.Outlook, OutlookButton, OutlookStatusText);
@@ -380,6 +390,11 @@ public partial class SettingsWindow : Window
     private async Task ToggleMailAccountAsync(MailProvider provider, Button button, TextBlock status)
     {
         var mail = App.Mail;
+        if (_signIns.TryGetValue(provider, out var running))
+        {
+            running.Cancel(); // La page du navigateur a pu être fermée : rien ne reviendrait avant 3 minutes.
+            return;
+        }
         if (mail.IsConnected(provider))
         {
             mail.Disconnect(provider);
@@ -389,10 +404,12 @@ public partial class SettingsWindow : Window
         }
 
         mail.SaveClientCredentials(OutlookIdBox.Text.Trim(), GmailIdBox.Text.Trim(), GmailSecretBox.Password.Trim());
-        button.IsEnabled = false;
+        using var cancellation = new CancellationTokenSource();
+        _signIns[provider] = cancellation;
+        button.Content = MailButtonLabel(provider);
         status.Text = "Connectez-vous dans la page ouverte par votre navigateur…";
-        status.Text = await mail.ConnectAsync(provider) ?? "Compte connecté.";
-        button.IsEnabled = true;
+        status.Text = await mail.ConnectAsync(provider, cancellation.Token) ?? "Compte connecté.";
+        _signIns.Remove(provider);
         RenderMailAccounts();
     }
 
@@ -407,6 +424,7 @@ public partial class SettingsWindow : Window
                 settings.Latitude = null;
                 settings.Longitude = null;
             });
+            CityChoicesCombo.Visibility = Visibility.Collapsed;
             CityStatusText.Text = "Ville retirée.";
             return;
         }

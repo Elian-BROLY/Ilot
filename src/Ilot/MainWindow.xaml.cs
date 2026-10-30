@@ -97,6 +97,7 @@ public partial class MainWindow : Window
     private readonly PrivacyIndicatorService _privacyIndicators = new();
     private readonly BatteryAlertPolicy _pcBatteryPolicy = new(20, 10);
     private readonly BatteryAlertPolicy _airPodsBatteryPolicy = new(20);
+    private readonly ConsecutiveLowReadings _airPodsLowReadings = new(threshold: 20, required: 3);
 
     public MainWindow()
     {
@@ -455,7 +456,7 @@ public partial class MainWindow : Window
         // Panneau ouvert : la ligne AirPods affiche déjà le changement.
         if (!_isExpanded && !_isHiddenForFullscreen)
         {
-            ShowBanner(isConnected);
+            ShowOrQueueBanner(() => ShowBanner(isConnected)); // Ne remplace pas un mail en train de s'afficher.
         }
     }
 
@@ -478,14 +479,14 @@ public partial class MainWindow : Window
     {
         System.Media.SystemSounds.Exclamation.Play();
         var minutes = duration.TotalMinutes.ToString("0.#", CultureInfo.InvariantCulture);
-        ShowInfoBanner("", "Minuteur terminé", $"{minutes} min écoulées{DescribeMissed()}");
+        ShowInfoBanner("", "Minuteur terminé", $"{minutes} min écoulées{DescribeMissed()}", keepAfterFullscreen: true);
     }
 
     private void OnTimerStopped()
     {
         if (_missedDuringFocus > 0)
         {
-            ShowInfoBanner("", "Concentration terminée", DescribeMissed().TrimStart(' ', '·'));
+            ShowInfoBanner("", "Concentration terminée", DescribeMissed().TrimStart(' ', '·'), keepAfterFullscreen: true);
         }
     }
 
@@ -559,6 +560,10 @@ public partial class MainWindow : Window
         {
             return;
         }
+        if (!_airPodsLowReadings.IsTrusted(lowest))
+        {
+            return; // Une annonce isolée peut venir d'une paire voisine.
+        }
         var crossed = _airPodsBatteryPolicy.Update(lowest, battery.IsLeftCharging || battery.IsRightCharging);
         if (crossed is not null && _settings.Current.BatteryAlertsEnabled)
         {
@@ -576,6 +581,7 @@ public partial class MainWindow : Window
         ExpandedMicDot.Visibility = mic;
         CompactCameraDot.Visibility = camera;
         ExpandedCameraDot.Visibility = camera;
+        UpdateCompactIndicators(); // Les points prennent de la place : la température peut devoir céder la sienne.
     }
 
     // --- Note rapide : la capsule accepte le focus clavier uniquement pendant la saisie ---
@@ -638,6 +644,18 @@ public partial class MainWindow : Window
         var showTemperature = _settings.Current.CompactTemperatureEnabled && temperature is not null;
         CompactTemperatureText.Visibility = showTemperature ? Visibility.Visible : Visibility.Collapsed;
         CompactTemperatureText.Text = showTemperature ? temperature!.Value.ToString(CultureInfo.InvariantCulture) + "°" : string.Empty;
+
+        // Trop d'indicateurs à la fois : la température, la moins utile, cède sa place plutôt que de chevaucher les autres.
+        if (showTemperature && !CompactLayout.Fits(CompactWidth, Measured(CompactCenter), Math.Max(Measured(PlayingIndicator), Measured(CompactTimerText)), Measured(CompactRight)))
+        {
+            CompactTemperatureText.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private static double Measured(UIElement element)
+    {
+        element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return element.DesiredSize.Width;
     }
 
     private static Brush CreateFrozenBrush(Color color)
@@ -977,6 +995,7 @@ public partial class MainWindow : Window
         {
             Show();
             PositionOnTargetScreen();
+            ShowNextQueuedBanner(); // La fin d'un minuteur a pu attendre la sortie du plein écran.
         }
         // L'égaliseur s'arrête seul : IsVisible devient faux quand la fenêtre est masquée.
         ScheduleMemoryTrim();

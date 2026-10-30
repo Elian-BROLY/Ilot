@@ -14,7 +14,8 @@ internal sealed class UpdateService
     private const string RepositoryUrl = "https://github.com/Elian-BROLY/Ilot";
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
 
-    private readonly UpdateManager? _manager = TryCreateManager();
+    // Créé au premier usage : Velopack doit avoir été initialisé par Program.Main, et ce service est une donnée statique d'App.
+    private readonly Lazy<UpdateManager?> _manager = new(TryCreateManager);
     private readonly DispatcherTimer _timer = new(DispatcherPriority.Background) { Interval = CheckInterval };
     private UpdateInfo? _pending;
     private bool _isChecking;
@@ -25,7 +26,7 @@ internal sealed class UpdateService
     public event Action<string>? UpdateReady;
 
     /// <summary>Faux pour une copie lancée depuis dist\ : sans installateur, rien à mettre à jour.</summary>
-    public bool IsAvailable => _manager?.IsInstalled == true;
+    public bool IsAvailable => _manager.Value?.IsInstalled == true;
 
     public bool IsPending => _pending is not null;
 
@@ -64,7 +65,7 @@ internal sealed class UpdateService
     /// <summary>Renvoie le résultat à afficher dans les réglages.</summary>
     public async Task<string> CheckAsync()
     {
-        if (_manager is not { IsInstalled: true } manager)
+        if (_manager.Value is not { IsInstalled: true } manager)
         {
             return "Mises à jour indisponibles : cette copie n'est pas installée.";
         }
@@ -106,7 +107,7 @@ internal sealed class UpdateService
     {
         if (_pending is { } update)
         {
-            _manager?.ApplyUpdatesAndRestart(update);
+            _manager.Value?.ApplyUpdatesAndRestart(update);
         }
     }
 }

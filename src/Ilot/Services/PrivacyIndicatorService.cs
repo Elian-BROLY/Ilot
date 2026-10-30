@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
@@ -67,7 +69,7 @@ internal sealed class PrivacyIndicatorService
                 foreach (var classicName in app.GetSubKeyNames())
                 {
                     using var classic = app.OpenSubKey(classicName);
-                    if (IsActive(classic))
+                    if (IsActive(classic) && IsProgramRunning(classicName))
                     {
                         return true;
                     }
@@ -82,6 +84,26 @@ internal sealed class PrivacyIndicatorService
     }
 
     private static bool IsActive(RegistryKey? app) =>
-        app?.GetValue("LastUsedTimeStop") is long stop && stop == 0
-        && app.GetValue("LastUsedTimeStart") is long start && start != 0;
+        app?.GetValue("LastUsedTimeStop") is long stop && app.GetValue("LastUsedTimeStart") is long start
+        && IsActive(start, stop, DateTime.UtcNow - TimeSpan.FromMilliseconds(Environment.TickCount64));
+
+    /// <summary>Une application qui plante laisse sa fin à 0 : un début antérieur au démarrage du PC ne compte donc pas.</summary>
+    internal static bool IsActive(long start, long stop, DateTime bootUtc) =>
+        stop == 0 && start > 0 && DateTime.FromFileTimeUtc(start) >= bootUtc;
+
+    // Une application classique qui a planté n'a plus de processus. Vérifié seulement si le registre la dit active.
+    private static bool IsProgramRunning(string keyName)
+    {
+        var processes = Process.GetProcessesByName(ProgramNameFromKey(keyName));
+        var isRunning = processes.Length > 0;
+        foreach (var process in processes)
+        {
+            process.Dispose();
+        }
+        return isRunning;
+    }
+
+    /// <summary>« C:#Program Files#Discord#Discord.exe » devient « Discord ».</summary>
+    internal static string ProgramNameFromKey(string keyName) =>
+        Path.GetFileNameWithoutExtension(keyName[(keyName.LastIndexOf('#') + 1)..]);
 }
