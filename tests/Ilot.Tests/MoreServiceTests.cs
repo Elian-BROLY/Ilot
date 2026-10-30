@@ -207,6 +207,16 @@ public class PomodoroTests
     }
 
     [Fact]
+    public void DisplayLearnsThePomodoroStepAtOnce()
+    {
+        var timer = new TimerService();
+        int? lastSeen = null;
+        timer.Changed += () => lastSeen = timer.PomodoroStep;
+        timer.StartPomodoro();
+        Assert.Equal(0, lastSeen);
+    }
+
+    [Fact]
     public void TimerMovesToBreakAndAnnouncesIt()
     {
         var timer = new TimerService();

@@ -50,6 +50,7 @@ internal sealed class TimerService
     {
         Start(PomodoroCycle.Duration(0));
         PomodoroStep = 0;
+        Changed?.Invoke(); // Sinon, l'affichage garde une seconde le statut d'un minuteur normal.
         StateChanged?.Invoke();
     }
 
