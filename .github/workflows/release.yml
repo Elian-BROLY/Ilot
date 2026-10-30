@@ -1,5 +1,5 @@
-# Publier une version : git tag v1.3.0, puis git push origin v1.3.0.
-# Le tag doit correspondre à <Version> dans Dynamic-Island.csproj.
+# Publier une version : git tag v1.4.1, puis git push origin v1.4.1.
+# Le tag doit correspondre à <Version> dans Ilot.csproj.
 name: Release
 
 on:
@@ -20,17 +20,18 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet test tests/Dynamic-Island.Tests/Dynamic-Island.Tests.csproj
+      - run: dotnet test tests/Ilot.Tests/Ilot.Tests.csproj
       - name: Vérifier la version
         shell: pwsh
         run: |
           $version = '${{ github.ref_name }}'.TrimStart('v')
-          $project = ([xml](Get-Content src/Dynamic-Island/Dynamic-Island.csproj)).Project.PropertyGroup.Version | Where-Object { $_ }
+          $project = ([xml](Get-Content src/Ilot/Ilot.csproj)).Project.PropertyGroup.Version | Where-Object { $_ }
           if ($project -ne $version) { throw "Le tag $version ne correspond pas à la version du projet $project." }
           "VERSION=$version" >> $env:GITHUB_ENV
-      - run: dotnet publish src/Dynamic-Island/Dynamic-Island.csproj -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=true -o dist
+      - run: dotnet publish src/Ilot/Ilot.csproj -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=true -o dist
       - run: dotnet tool restore
       # Récupère la version précédente pour que la mise à jour ne télécharge que la différence.
-      - run: dotnet tool run vpk -- download github --repoUrl ${{ env.REPO_URL }} --token ${{ env.TOKEN }} --outputDir installer
-      - run: dotnet tool run vpk -- pack --packId Dynamic-Island --packVersion ${{ env.VERSION }} --packDir dist --mainExe Dynamic-Island.exe --packTitle Dynamic-Island --icon src/Dynamic-Island/Assets/Dynamic-Island.ico --framework net10.0-x64-desktop --outputDir installer
-      - run: dotnet tool run vpk -- upload github --repoUrl ${{ env.REPO_URL }} --token ${{ env.TOKEN }} --outputDir installer --publish --releaseName "Dynamic-Island ${{ env.VERSION }}" --tag ${{ github.ref_name }}
+      - continue-on-error: true # Pas de version précédente lors de la toute première publication.
+        run: dotnet tool run vpk -- download github --repoUrl ${{ env.REPO_URL }} --token ${{ env.TOKEN }} --outputDir installer
+      - run: dotnet tool run vpk -- pack --packId Ilot --packVersion ${{ env.VERSION }} --packDir dist --mainExe Ilot.exe --packTitle Ilot --icon src/Ilot/Assets/Ilot.ico --framework net10.0-x64-desktop --outputDir installer
+      - run: dotnet tool run vpk -- upload github --repoUrl ${{ env.REPO_URL }} --token ${{ env.TOKEN }} --outputDir installer --publish --releaseName "Ilot ${{ env.VERSION }}" --tag ${{ github.ref_name }}

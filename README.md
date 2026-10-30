@@ -1,14 +1,18 @@
-# Dynamic-Island
+# Ilot
 
-Dynamic Island pour Windows 11 : une capsule en haut de l'écran qui s'ouvre au survol et donne accès au lecteur média, aux mails, à la météo, au volume, à la batterie et aux AirPods.
+[![CI](https://github.com/Elian-BROLY/Ilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Elian-BROLY/Ilot/actions/workflows/ci.yml)
+[![Licence : MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
-![Le lecteur](docs/lecteur.png)
+Français | [English](README.en.md)
 
-![Les mails](docs/mails.png)
+Une capsule en haut de l'écran de Windows 11, inspirée de la pastille de l'iPhone. Elle s'ouvre au survol et donne accès au lecteur média, aux mails, à la météo, au volume, à la batterie et aux AirPods. Ce projet n'a aucun lien avec Apple.
+
+![Démonstration d'Ilot](docs/demo.gif)
+
 
 ## Installer
 
-Téléchargez `Dynamic-Island-win-Setup.exe` depuis les [Releases](https://github.com/Elian-BROLY/Dynamic-Island/releases). Il installe aussi le runtime .NET 10 Desktop s'il manque, ce qui demande une fois les droits administrateur. L'application se met ensuite à jour toute seule.
+Téléchargez `Ilot-win-Setup.exe` depuis les [Releases](https://github.com/Elian-BROLY/Ilot/releases). Il installe aussi le runtime .NET 10 Desktop s'il manque, ce qui demande une fois les droits administrateur. L'application se met ensuite à jour toute seule.
 
 L'exécutable n'est pas signé. Windows peut donc afficher un avertissement SmartScreen, et le **Contrôle intelligent des applications**, s'il est activé, peut refuser de lancer une version : Windows décide selon la réputation de chaque fichier.
 
@@ -32,7 +36,7 @@ L'exécutable n'est pas signé. Windows peut donc afficher un avertissement Smar
 | `Ctrl + Alt + Maj + Espace` | Lecture ou pause |
 | `Ctrl + Alt + Maj + →` ou `←` | Morceau suivant ou précédent |
 
-Les réglages sont enregistrés dans `%APPDATA%\Dynamic-Island\settings.json`. La météo affiche Strasbourg par défaut ; la ville se change dans les réglages et son nom est envoyé au service [Open-Meteo](https://open-meteo.com/).
+Les réglages sont enregistrés dans `%APPDATA%\Ilot\settings.json`. La météo affiche Strasbourg par défaut ; la ville se change dans les réglages et son nom est envoyé au service [Open-Meteo](https://open-meteo.com/).
 
 ## Pages et indicateurs
 
@@ -42,10 +46,10 @@ Les réglages sont enregistrés dans `%APPDATA%\Dynamic-Island\settings.json`. L
 - **Volume par application** : sur la sortie par défaut, jusqu'à 4 applications.
 - **Système** : CPU, mémoire et débit réseau, mis à jour seulement quand la page est affichée.
 - **Mode concentration** : pendant un minuteur (pause comprise), les notifications et mails ne s'affichent plus en bannière, et un compte s'affiche à la fin. Les alertes de batterie et d'AirPods restent actives. Pour que rien n'apparaisse non plus en bas à droite, gardez « Ne pas déranger » activé (`Win + N`).
-
+- **Écrans** : la capsule s'affiche sur l'écran choisi dans les réglages, ou passe sur celui où se trouve la souris.
 - **Sortie audio** : un clic bascule la sortie par défaut. Le bouton casque de la ligne du volume y mène directement. Windows n'ayant pas d'API publique pour ça, l'application utilise l'interface non documentée `IPolicyConfig`.
-- **Minuteur** : 5, 25 ou 45 min ; le décompte reste visible dans la capsule compacte, à la place de l'égaliseur.
-- **Note rapide** : enregistrée automatiquement, en clair, dans `%APPDATA%\Dynamic-Island\note.txt`.
+- **Minuteur** : 5, 25 ou 45 min ; le décompte reste visible dans la capsule compacte, à la place de l'égaliseur, et continue après un redémarrage de l'application.
+- **Note rapide** : enregistrée automatiquement, en clair, dans `%APPDATA%\Ilot\note.txt`.
 - **Micro et caméra** : point orange pour le micro, vert pour la caméra.
 - **Alertes batterie** : PC à 20 % et 10 %, AirPods à 20 % (contrôle toutes les 5 min tant qu'ils sont connectés), chargeur branché ou débranché.
 - **Température** : affichée à côté de l'heure en mode compact.
@@ -78,17 +82,17 @@ Dans les réglages, onglet **Mails** : collez vos identifiants OAuth puis clique
 
 Sur la page Mails, un clic sur un mail l'ouvre dans le navigateur. Au survol, la corbeille place le mail, en un clic, dans la corbeille du service, d'où il reste récupérable.
 
-Quand un seul compte est à la fois affiché et connecté, 4 mails sont visibles d'un coup ; la flèche de l'en-tête passe aux 4 suivants (jusqu'à 20 non lus). Avec deux comptes, chacun garde sa ligne, et la flèche qui apparaît au survol passe au non lu suivant.
+Quand un seul compte est à la fois affiché et connecté, 4 mails sont visibles d'un coup ; la flèche de l'en-tête passe aux 4 suivants (jusqu'à 20 non lus). Avec plusieurs comptes, chacun garde sa ligne, et la flèche qui apparaît au survol passe au non lu suivant. Un second compte Gmail se connecte avec les mêmes identifiants que le premier.
 
 À l'arrivée d'un mail, une bannière s'affiche quelques secondes avec l'expéditeur et le sujet (boîte relue chaque minute) ; un clic ouvre le mail, et la survoler la maintient ouverte. Elle se désactive dans les réglages et ne s'affiche ni panneau ouvert, ni en plein écran.
 
-L'application n'affiche que le nombre de non lus, l'expéditeur et le sujet. La mise à la corbeille impose toutefois une autorisation large (`gmail.modify`, `Mail.ReadWrite`), qui donne techniquement accès au contenu de la boîte. Identifiants et autorisations sont chiffrés avec DPAPI dans `%APPDATA%\Dynamic-Island\mail.dat`.
+L'application n'affiche que le nombre de non lus, l'expéditeur et le sujet. La mise à la corbeille impose toutefois une autorisation large (`gmail.modify`, `Mail.ReadWrite`), qui donne techniquement accès au contenu de la boîte. Identifiants et autorisations sont chiffrés avec DPAPI dans `%APPDATA%\Ilot\mail.dat`.
 
 Une bannière apparaît à chaque connexion ou déconnexion des AirPods quand le panneau est fermé. La batterie (G : gauche, D : droite, B : boîtier) provient d'annonces Bluetooth non documentées par Apple : elle est indicative, par pas de 10 %. L'écoute Bluetooth ne tourne que lorsque la batterie est affichée.
 
 ## Dépannage
 
-Les erreurs techniques sont notées dans `%APPDATA%\Dynamic-Island\app.log`, jamais le contenu des mails ou de la note. Le bouton **Ouvrir le journal** se trouve dans l'onglet **À propos** des réglages.
+Les erreurs techniques sont notées dans `%APPDATA%\Ilot\app.log`, jamais le contenu des mails ou de la note. Le bouton **Ouvrir le journal** se trouve dans l'onglet **À propos** des réglages.
 
 ## Développer
 
@@ -96,37 +100,13 @@ Prérequis : SDK .NET 10.
 
 | Commande | Effet |
 | --- | --- |
-| `dotnet run --project src\Dynamic-Island` | Lance l'application |
-| `dotnet test tests\Dynamic-Island.Tests` | Lance les tests |
+| `dotnet run --project src\Ilot` | Lance l'application |
+| `dotnet test tests\Ilot.Tests` | Lance les tests |
 | `publish.cmd` | Génère `dist\` |
-| `make-installer.cmd` | Génère `installer\Dynamic-Island-win-Setup.exe` |
+| `make-installer.cmd` | Génère `installer\Ilot-win-Setup.exe` |
 
-## Publier une version
+Pour contribuer, voir [CONTRIBUTING.md](CONTRIBUTING.md). Pour la structure du code et la publication, voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-1. Augmentez `<Version>` dans `Dynamic-Island.csproj` et poussez le commit.
-2. Lancez `git tag v1.3.0`, puis `git push origin v1.3.0`, avec le même numéro.
+## Licence
 
-GitHub Actions lance les tests, construit l'installateur et publie la Release. Les copies installées la trouvent en moins de 6 heures.
-
-## Structure
-
-```
-src/Dynamic-Island/
-  App.xaml(.cs)         Démarrage, instance unique, mode de rendu
-  MainWindow.xaml(.cs)  Capsule : position, états, pages, animations, survol, masquage en plein écran
-  MainWindow.Banners.cs Bannières : notifications, mails, morceau suivant, alertes
-  MainWindow.Hotkeys.cs Raccourcis clavier globaux
-  SettingsWindow.xaml   Fenêtre de réglages
-  Settings/             Modèle et enregistrement des réglages
-  Controls/             Courbe de ressort, texte défilant, égaliseur, jauges, icônes météo
-  Widgets/              Média, météo, volume et batterie, AirPods
-  Services/             GSMTC, Core Audio, Bluetooth, météo, écrans, démarrage auto, icône de notification
-  Interop/              Déclarations Win32 et COM
-tests/Dynamic-Island.Tests/  Tests des services
-```
-
-## Choix techniques
-
-- **Fenêtre de taille fixe** : seule la capsule s'anime à l'intérieur, ce qui évite tout sautillement. Les pixels transparents laissent passer les clics.
-- **Rendu logiciel** : il réduit fortement la mémoire utilisée (voir `App.xaml.cs`).
-- **Translucidité simulée** : un vrai effet Acrylic ou Mica est incompatible avec une fenêtre à transparence par pixel et des coins de capsule. Le panneau utilise donc un fond sombre légèrement translucide, sans flou.
+[MIT](LICENSE)

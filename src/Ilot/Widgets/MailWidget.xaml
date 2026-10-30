@@ -1,0 +1,13 @@
+<UserControl x:Class="Ilot.Widgets.MailWidget"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid x:Name="RootGrid">
+        <TextBlock x:Name="NoAccountText"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Text="Aucun compte activé dans les réglages"
+                   Visibility="Collapsed" />
+        <StackPanel x:Name="Rows" VerticalAlignment="Center" />
+    </Grid>
+</UserControl>

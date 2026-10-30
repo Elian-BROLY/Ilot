@@ -1,0 +1,244 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using Ilot.Controls;
+using Ilot.Services;
+
+namespace Ilot;
+
+public partial class MainWindow
+{
+    private const double TrackBannerWidth = 290;
+    private const double TrackBannerHeight = 46;
+    private const double BannerMarkSize = 32;
+    private const double TrackBannerMarkSize = 30;
+    private const string MusicGlyph = "";
+    private const string UpdateGlyph = "";
+    private static readonly TimeSpan TrackBannerDuration = TimeSpan.FromSeconds(3.5);
+
+    /// <summary>Remplit la bannière. Une bannière avec <paramref name="click"/> reste ouverte au survol ; sans, le survol ouvre le panneau.</summary>
+    private void SetBannerContent(string title, string status, Action? click, string letter = "", bool isGlyph = false,
+        ImageSource? icon = null, ImageSource? artwork = null, string extra = "")
+    {
+        BannerNameText.Text = title;
+        BannerStatusText.Text = status;
+        BannerMailLetter.Text = letter;
+        BannerMailLetter.FontFamily = isGlyph ? (FontFamily)FindResource("IconFont") : FontFamily;
+        BannerMailLetter.Visibility = icon is null && artwork is null ? Visibility.Visible : Visibility.Collapsed;
+        BannerAppIcon.Source = icon;
+        BannerAirPodsIcon.Visibility = Visibility.Collapsed;
+        BannerMailMark.Visibility = Visibility.Visible;
+        BannerMailMark.Width = BannerMailMark.Height = BannerMarkSize;
+        BannerMailMark.Background = artwork is null ? (Brush)FindResource("HoverBrush") : new ImageBrush(artwork) { Stretch = Stretch.UniformToFill };
+        BannerRings.Visibility = Visibility.Collapsed;
+        BannerExtraText.Text = extra;
+        BannerExtraText.Visibility = extra.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AirPodsPanel.IsBannerWatching = false;
+        _bannerClick = click;
+        _isTrackBannerVisible = false;
+    }
+
+    private void ShowBanner(bool isConnected)
+    {
+        SetBannerContent(AirPodsPanel.DeviceName, isConnected ? "Connectés" : "Déconnectés", click: null);
+        BannerRings.Update(isConnected ? AirPodsPanel.Battery : null);
+        BannerRings.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
+        BannerAirPodsIcon.Visibility = Visibility.Visible;
+        BannerMailMark.Visibility = Visibility.Collapsed;
+        AirPodsPanel.IsBannerWatching = isConnected;
+        PresentBanner(AirPodsBannerDuration);
+    }
+
+    /// <summary>Affiche la bannière tout de suite si la capsule est libre, sinon après les précédentes.</summary>
+    private void ShowOrQueueBanner(Action show)
+    {
+        if (!_isExpanded && !_isBannerVisible)
+        {
+            show();
+            return;
+        }
+        if (_bannerQueue.Count >= MaxQueuedBanners)
+        {
+            _bannerQueue.Dequeue(); // Tout reste consultable dans le centre de notifications (Win + N).
+        }
+        _bannerQueue.Enqueue(show);
+    }
+
+    private void ShowNextQueuedBanner()
+    {
+        if (!_isExpanded && !_isBannerVisible && !_isHiddenForFullscreen && _bannerQueue.TryDequeue(out var show))
+        {
+            show();
+        }
+    }
+
+    // --- Bannières d'information : minuteur, batterie, mise à jour ---
+
+    private void ShowInfoBanner(string glyph, string title, string status, Action? click = null)
+    {
+        if (_isHiddenForFullscreen)
+        {
+            return;
+        }
+        ShowOrQueueBanner(() =>
+        {
+            SetBannerContent(title, status, click ?? (() => { }), glyph, isGlyph: true);
+            PresentBanner(MailBannerDuration);
+        });
+    }
+
+    private void OnUpdateReady(string version)
+    {
+        if (!IsInFocusMode)
+        {
+            ShowInfoBanner(UpdateGlyph, $"Version {version} prête", "Cliquez pour redémarrer, ou elle s'installera au prochain lancement", App.Updates.ApplyAndRestart);
+        }
+    }
+
+    // --- Bannière de changement de morceau ---
+
+    // Différé : certains lecteurs publient le titre, l'artiste et la pochette en plusieurs fois.
+    private void OnTrackChanged()
+    {
+        _trackBannerTimer.Stop();
+        _trackBannerTimer.Start();
+    }
+
+    private void ShowTrackBanner()
+    {
+        _trackBannerTimer.Stop();
+        var media = MediaPanel.Service;
+        // Moins importante que les autres bannières : elle est abandonnée plutôt que mise en attente, le titre serait périmé.
+        if (!_settings.Current.TrackBannerEnabled || !media.IsPlaying || !media.IsPreferredSourceShown || media.Title.Length == 0
+            || _isExpanded || _isHiddenForFullscreen || IsInFocusMode || (_isBannerVisible && !_isTrackBannerVisible))
+        {
+            return;
+        }
+
+        SetBannerContent(media.Title, media.Artist.Length > 0 ? media.Artist : media.SourceName, click: null, MusicGlyph, isGlyph: true, artwork: media.Thumbnail);
+        BannerMailMark.Width = BannerMailMark.Height = TrackBannerMarkSize;
+        _isTrackBannerVisible = true;
+        PresentBanner(TrackBannerDuration, TrackBannerWidth, TrackBannerHeight);
+    }
+
+    // --- Bannière de notification Windows ---
+
+    private void OnSystemNotificationReceived(SystemNotification notification)
+    {
+        if (IsInFocusMode)
+        {
+            _missedDuringFocus++;
+            return;
+        }
+        // Plein écran : ne pas déranger. La notification reste dans le centre de notifications.
+        if (!_isHiddenForFullscreen)
+        {
+            ShowOrQueueBanner(() => ShowSystemNotificationBanner(notification));
+        }
+    }
+
+    private void ShowSystemNotificationBanner(SystemNotification notification)
+    {
+        var status = notification.Body.Length > 0 ? $"{notification.AppName} · {notification.Body}" : notification.AppName;
+        // Windows ne donne pas accès aux boutons de la notification : le clic ouvre l'application.
+        SetBannerContent(notification.Title, status, () => AppIconService.OpenApp(notification.AppId),
+            notification.AppName[..1].ToUpperInvariant(), icon: notification.Icon);
+        PresentBanner(MailBannerDuration);
+    }
+
+    // --- Bannière de nouveau mail ---
+
+    private void OnNewMailReceived(MailNotification notification)
+    {
+        if (IsInFocusMode)
+        {
+            _missedDuringFocus += 1 + notification.OtherCount;
+            return;
+        }
+        // Panneau ouvert : la page Mails et le compteur affichent déjà l'information.
+        if (_settings.Current.MailBannerEnabled && !_isExpanded && !_isHiddenForFullscreen)
+        {
+            ShowOrQueueBanner(() => ShowMailBanner(notification));
+        }
+    }
+
+    private void ShowMailBanner(MailNotification notification)
+    {
+        var item = notification.Item;
+        var label = notification.Provider.Label();
+        var url = item.OpenUrl;
+        SetBannerContent(
+            string.IsNullOrWhiteSpace(item.Sender) ? label : item.Sender,
+            string.IsNullOrWhiteSpace(item.Subject) ? "(sans objet)" : item.Subject,
+            () =>
+            {
+                if (url is not null)
+                {
+                    App.Mail.OpenInBrowser(url);
+                }
+            },
+            label[..1],
+            extra: notification.OtherCount > 0 ? "+" + notification.OtherCount.ToString(CultureInfo.InvariantCulture) : string.Empty);
+        PresentBanner(MailBannerDuration);
+    }
+
+    private void BannerPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Géré ici : ce clic agit sur la bannière, il ne doit ni verrouiller ni déplacer la capsule.
+        if (_bannerClick is not null)
+        {
+            _isBannerPressed = true;
+            e.Handled = true;
+        }
+    }
+
+    private void BannerPanel_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_isBannerPressed && _bannerClick is { } click)
+        {
+            e.Handled = true;
+            click();
+            Collapse();
+        }
+        _isBannerPressed = false;
+    }
+
+    private void PresentBanner(TimeSpan displayDuration, double width = BannerWidth, double height = BannerHeight)
+    {
+        _trimTimer.Stop();
+        _bannerTimer.Stop();
+        _bannerTimer.Interval = displayDuration;
+        _bannerTimer.Start();
+
+        // Aussi si une bannière est déjà affichée : elle n'a pas forcément la même taille.
+        BannerPanel.Width = width;
+        BannerPanel.Height = height;
+        var duration = TimeSpan.FromMilliseconds(380);
+        var spring = new SpringEase();
+        Animate(Capsule, WidthProperty, width, duration, spring);
+        Animate(Capsule, HeightProperty, height, duration, spring);
+        Animate(this, CapsuleRadiusProperty, height / 2, duration, null);
+        if (_isBannerVisible)
+        {
+            return;
+        }
+        _isBannerVisible = true;
+        UpdateCompactIndicators();
+
+        BannerPanel.Visibility = Visibility.Visible;
+        Animate(CompactContent, OpacityProperty, 0, TimeSpan.FromMilliseconds(90), null);
+        Animate(BannerPanel, OpacityProperty, 1, TimeSpan.FromMilliseconds(220), null, TimeSpan.FromMilliseconds(90));
+    }
+
+    private void HideBannerContent()
+    {
+        _isBannerVisible = false;
+        _isTrackBannerVisible = false;
+        _isBannerPressed = false;
+        _bannerClick = null;
+        _bannerTimer.Stop();
+        AirPodsPanel.IsBannerWatching = false;
+        Animate(BannerPanel, OpacityProperty, 0, TimeSpan.FromMilliseconds(100), null);
+    }
+}
