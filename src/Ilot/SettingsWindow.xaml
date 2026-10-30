@@ -193,6 +193,8 @@
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                             <CheckBox x:Name="WheelVolumeCheck" Content="Régler le volume à la molette sur la capsule fermée et sur la ligne du bas du panneau"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="PomodoroButtonCheck" Content="Afficher le bouton Pomodoro dans le minuteur"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                             <CheckBox x:Name="PomodoroMusicCheck" Content="Pomodoro : mettre la musique en pause pendant les pauses"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                         </StackPanel>

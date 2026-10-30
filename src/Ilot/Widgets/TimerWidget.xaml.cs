@@ -13,6 +13,8 @@ public partial class TimerWidget : UserControl
     private const int MaxMinutes = 1440;
     private static readonly int[] PresetMinutes = [5, 25, 45];
 
+    private readonly Button _pomodoroButton;
+
     public TimerWidget()
     {
         InitializeComponent();
@@ -20,7 +22,11 @@ public partial class TimerWidget : UserControl
         {
             Presets.Children.Add(CreatePreset(minutes));
         }
-        Presets.Children.Add(CreatePomodoroButton());
+        // Sur sa propre ligne : à côté des durées, il couperait le titre de la page.
+        _pomodoroButton = CreatePomodoroButton();
+        SetupPanel.Children.Add(_pomodoroButton);
+        App.Settings.Changed += ApplyPomodoroVisibility;
+        ApplyPomodoroVisibility();
         Service.Changed += Render;
     }
 
@@ -56,13 +62,17 @@ public partial class TimerWidget : UserControl
         return button;
     }
 
+    private void ApplyPomodoroVisibility() =>
+        _pomodoroButton.Visibility = App.Settings.Current.PomodoroButtonEnabled ? Visibility.Visible : Visibility.Collapsed;
+
     private Button CreatePomodoroButton()
     {
         var button = new Button
         {
-            Width = 72,
-            Height = 30,
-            Margin = new Thickness(0, 0, 6, 0),
+            Width = 180,
+            Height = 26,
+            Margin = new Thickness(0, 6, 6, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
             FontSize = 11,
             Style = (Style)FindResource("PillRowButton"),
             Background = (Brush)FindResource("SurfaceBrush"),

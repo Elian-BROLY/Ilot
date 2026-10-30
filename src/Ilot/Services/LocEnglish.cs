@@ -274,6 +274,7 @@ internal static partial class Loc
         ["Signaler l'usage du micro et de la caméra"] = "Show when the microphone or camera is in use",
         ["À l'ouverture, afficher le minuteur s'il tourne, sinon le lecteur si la musique joue"] = "On opening, show the timer if running, otherwise the player if music is playing",
         ["Régler le volume à la molette sur la capsule fermée et sur la ligne du bas du panneau"] = "Change the volume with the wheel on the closed capsule and on the panel's bottom row",
+        ["Afficher le bouton Pomodoro dans le minuteur"] = "Show the Pomodoro button in the timer",
         ["Pomodoro : mettre la musique en pause pendant les pauses"] = "Pomodoro: pause the music during breaks",
         ["Délais et animations"] = "Delays and animations",
         ["Délai d'ouverture"] = "Open delay",

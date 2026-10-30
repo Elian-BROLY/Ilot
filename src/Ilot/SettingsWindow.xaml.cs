@@ -112,6 +112,7 @@ public partial class SettingsWindow : Window
         ContextualPageCheck.IsChecked = settings.ContextualPageEnabled;
         WheelVolumeCheck.IsChecked = settings.WheelVolumeEnabled;
         PomodoroMusicCheck.IsChecked = settings.PomodoroControlsMusic;
+        PomodoroButtonCheck.IsChecked = settings.PomodoroButtonEnabled;
         HeadsetRowCheck.IsChecked = settings.HeadsetRowEnabled;
         QuietHoursCheck.IsChecked = settings.QuietHoursEnabled;
         QuietStartBox.Text = NotificationFilter.FormatTime(settings.QuietHoursStart);
@@ -461,6 +462,7 @@ public partial class SettingsWindow : Window
             settings.ContextualPageEnabled = ContextualPageCheck.IsChecked == true;
             settings.WheelVolumeEnabled = WheelVolumeCheck.IsChecked == true;
             settings.PomodoroControlsMusic = PomodoroMusicCheck.IsChecked == true;
+            settings.PomodoroButtonEnabled = PomodoroButtonCheck.IsChecked == true;
         });
         RenderHotkeyStatus();
     }
