@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private const double CompactTintStrength = 0.2;
     private const double ExpandedTintStrength = 0.28;
     private const int DragThresholdPixels = 6;
+    private const double PageDotHeight = 10;
+    private const double PageAreaHeight = 106; // La première ligne du panneau, dans MainWindow.xaml.
     private static readonly TimeSpan AirPodsBannerDuration = TimeSpan.FromSeconds(3.5);
     private static readonly TimeSpan MailBannerDuration = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan MailBannerDurationAfterHover = TimeSpan.FromSeconds(2);
@@ -71,7 +73,7 @@ public partial class MainWindow : Window
     private bool _isExpanded;
     private string? _shownOnDevice;
     private bool _isBannerVisible;
-    private bool _isTrackBannerVisible;
+    private bool _isTransientBannerVisible;
     private bool _isBannerPressed;
     private Action? _bannerClick; // Non nul : le survol maintient la bannière, et le clic exécute cette action.
     private readonly Queue<Action> _bannerQueue = new();
@@ -122,7 +124,11 @@ public partial class MainWindow : Window
             [PageIds.SystemStats] = SystemStatsPanel,
             [PageIds.Calendar] = CalendarPanel,
             [PageIds.Files] = FilesPanel,
+            [PageIds.Clipboard] = ClipboardPanel,
+            [PageIds.Shortcuts] = QuickActionsPanel,
         };
+        QuickActionsPanel.CaptureRequested += CollapseForCapture;
+        _microphoneTimer.Tick += (_, _) => CheckMicrophoneMute();
         _animationPreviewTimer.Tick += (_, _) => OnAnimationPreviewTick();
         CalendarPanel.ReminderDue += OnCalendarReminder;
         CalendarPanel.CountdownChanged += UpdateCompactIndicators;
@@ -130,7 +136,7 @@ public partial class MainWindow : Window
         _volumeFeedbackTimer.Tick += (_, _) =>
         {
             _volumeFeedbackTimer.Stop();
-            ClockText.Text = DateTime.Now.ToString("HH:mm", CultureInfo.InvariantCulture);
+            ClockText.Text = ClockFormat.Format(DateTime.Now);
         };
 
         _clockTimer.Tick += (_, _) => UpdateClock();
@@ -230,9 +236,10 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         var settings = _settings.Current;
-        if (ThemeService.NeedsRestart(settings))
+        // Le mode de rendu se choisit une fois pour tout le processus, au démarrage.
+        if (ThemeService.NeedsRestart(settings) || settings.HardwareRenderingEnabled != App.IsHardwareRendering)
         {
-            App.RestartToApplyTheme();
+            App.RestartToApplySettings();
             return;
         }
         CapsuleFill.BeginAnimation(SolidColorBrush.ColorProperty,
@@ -253,6 +260,9 @@ public partial class MainWindow : Window
         OutputButton.Visibility = _visiblePages.Contains(PageIds.Audio) ? Visibility.Visible : Visibility.Collapsed;
         UpdateCompactIndicators();
         UpdateHotkeyRegistration();
+        UpdateClipboardListening();
+        UpdateDownloadWatching();
+        UpdateKeyIndicators();
         CheckPowerStatus();
         App.Updates.SetAutomatic(settings.AutoUpdateEnabled);
         if (settings.PrivacyIndicatorsEnabled)
@@ -330,7 +340,8 @@ public partial class MainWindow : Window
         var dot = new Border
         {
             Width = 14,
-            Height = 10, // Toutes les pages actives doivent tenir dans la hauteur du panneau.
+            // Toutes les pages actives doivent tenir dans la hauteur du panneau, même toutes cochées.
+            Height = Math.Min(PageDotHeight, PageAreaHeight / Math.Max(1, _visiblePages.Count)),
             Background = Brushes.Transparent,
             Tag = id,
             Child = new Ellipse { Width = 5, Height = 5, Fill = (Brush)FindResource("TextPrimaryBrush") },
@@ -391,7 +402,8 @@ public partial class MainWindow : Window
         }
         if (!_isExpanded || _visiblePages.Count < 2 || _currentPage is null
             || (_currentPage == PageIds.Note && NotePanel.IsContentScrollable)
-            || (_currentPage == PageIds.Files && FilesPanel.IsContentScrollable))
+            || (_currentPage == PageIds.Files && FilesPanel.IsContentScrollable)
+            || (_currentPage == PageIds.Clipboard && ClipboardPanel.IsContentScrollable))
         {
             return;
         }
@@ -472,6 +484,43 @@ public partial class MainWindow : Window
         {
             _collapseTimer.Start();
         }
+    }
+
+    // --- Presse-papiers ---
+
+    private bool _isClipboardListening;
+
+    /// <summary>Windows ne prévient de chaque copie que si la page est affichée : sinon, rien n'est lu.</summary>
+    private void UpdateClipboardListening()
+    {
+        var isWanted = _visiblePages.Contains(PageIds.Clipboard);
+        if (_hwnd == IntPtr.Zero || isWanted == _isClipboardListening)
+        {
+            return; // Refait dans OnSourceInitialized.
+        }
+        if (isWanted)
+        {
+            _isClipboardListening = NativeMethods.AddClipboardFormatListener(_hwnd);
+        }
+        else
+        {
+            NativeMethods.RemoveClipboardFormatListener(_hwnd);
+            _isClipboardListening = false;
+            ClipboardPanel.Clear();
+        }
+    }
+
+    // --- Raccourcis ---
+
+    private void CollapseForCapture()
+    {
+        if (_isPinned)
+        {
+            TogglePinned();
+        }
+        _expandTimer.Stop();
+        _collapseTimer.Stop();
+        Collapse();
     }
 
     // Les pages forment une boucle dans les deux sens.
@@ -632,85 +681,19 @@ public partial class MainWindow : Window
         };
     }
 
-    private void CheckNetworkAvailability()
-    {
-        _networkAlertTimer.Stop();
-        var isUp = NetworkStatus.IsOnline();
-        if (isUp == _isNetworkUp)
-        {
-            return;
-        }
-        _isNetworkUp = isUp;
-        if (_settings.Current.NetworkAlertsEnabled && !IsInFocusMode)
-        {
-            ShowInfoBanner("", isUp ? Loc.T("Connexion rétablie") : Loc.T("Connexion perdue"), isUp ? Loc.T("Vous êtes de nouveau en ligne") : Loc.T("Aucun réseau disponible"));
-        }
-    }
-
-    // Aussi appelé chaque minute : tous les PC ne signalent pas chaque variation du niveau de batterie.
-    private void CheckPowerStatus()
-    {
-        if (!NativeMethods.GetSystemPowerStatus(out var status)
-            || (status.BatteryFlag & 128) != 0 // Pas de batterie.
-            || status.BatteryLifePercent == 255)
-        {
-            return;
-        }
-
-        var isOnAcPower = status.ACLineStatus == 1;
-        var percent = status.BatteryLifePercent.ToString(CultureInfo.InvariantCulture) + " %";
-        var crossed = _pcBatteryPolicy.Update(status.BatteryLifePercent, isOnAcPower);
-        var hasPlugChanged = _wasOnAcPower is { } wasOn && wasOn != isOnAcPower;
-        _wasOnAcPower = isOnAcPower;
-
-        if (!_settings.Current.BatteryAlertsEnabled)
-        {
-            return;
-        }
-        if (hasPlugChanged)
-        {
-            ShowInfoBanner(isOnAcPower ? "" : "", isOnAcPower ? Loc.T("Chargeur branché") : Loc.T("Chargeur débranché"), Loc.T("Batterie à {0}", percent));
-        }
-        if (crossed is not null)
-        {
-            ShowInfoBanner("", Loc.T("Batterie faible"), Loc.T("Plus que {0} : pensez à brancher le chargeur", percent));
-        }
-    }
-
-    private void OnAirPodsBatteryChanged()
-    {
-        BannerRings.Update(AirPodsPanel.Battery);
-        if (AirPodsPanel.Battery is not { } battery || !AirPodsPanel.IsConnected)
-        {
-            return;
-        }
-        // Le plus faible des deux écouteurs décide. Le boîtier n'est pas concerné : il n'a pas besoin d'être en poche.
-        int?[] levels = [battery.Left, battery.Right];
-        if (levels.Min() is not { } lowest)
-        {
-            return;
-        }
-        if (!_airPodsLowReadings.IsTrusted(lowest))
-        {
-            return; // Une annonce isolée peut venir d'une paire voisine.
-        }
-        var crossed = _airPodsBatteryPolicy.Update(lowest, battery.IsLeftCharging || battery.IsRightCharging);
-        if (crossed is not null && _settings.Current.BatteryAlertsEnabled)
-        {
-            ShowInfoBanner("", AirPodsPanel.IsAirPods ? Loc.T("Batterie des AirPods faible") : Loc.T("Batterie faible : {0}", AirPodsPanel.DeviceName), Loc.T("Environ {0} %", lowest));
-        }
-    }
-
-    // --- Micro et caméra ---
+    // --- Micro, caméra et partage d'écran ---
 
     private void UpdatePrivacyDots()
     {
         var mic = _privacyIndicators.IsMicrophoneInUse ? Visibility.Visible : Visibility.Collapsed;
         var camera = _privacyIndicators.IsCameraInUse ? Visibility.Visible : Visibility.Collapsed;
+        var screen = _privacyIndicators.IsScreenCaptureInUse ? Visibility.Visible : Visibility.Collapsed;
         CompactMicDot.Visibility = mic;
         ExpandedMicDot.Visibility = mic;
         CompactCameraDot.Visibility = camera;
         ExpandedCameraDot.Visibility = camera;
+        CompactScreenDot.Visibility = screen;
+        ExpandedScreenDot.Visibility = screen;
         UpdateCompactIndicators(); // Les points prennent de la place : la température peut devoir céder la sienne.
     }
 
@@ -760,20 +743,23 @@ public partial class MainWindow : Window
     private void UpdateCompactIndicators()
     {
         var isCompact = !_isExpanded && !_isBannerVisible;
-        AirPodsIndicator.Visibility = AirPodsPanel.IsConnected ? Visibility.Visible : Visibility.Collapsed;
-        MailIndicator.Visibility = MailPanel.TotalUnread > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var settings = _settings.Current;
+        AirPodsIndicator.Visibility = AirPodsPanel.IsConnected && settings.CompactHeadsetEnabled ? Visibility.Visible : Visibility.Collapsed;
+        MailIndicator.Visibility = MailPanel.TotalUnread > 0 && settings.CompactMailEnabled ? Visibility.Visible : Visibility.Collapsed;
         MailCountText.Text = MailPanel.TotalUnread > 99 ? "99+" : MailPanel.TotalUnread.ToString(CultureInfo.InvariantCulture);
+        DownloadIndicator.Visibility = IsDownloading ? Visibility.Visible : Visibility.Collapsed;
         // Le minuteur prend la place de l'égaliseur : la capsule compacte est trop étroite pour les deux.
         var timer = TimerPanel.Service;
         // Le prochain rendez-vous, s'il est proche, passe après le minuteur et avant l'égaliseur.
-        var countdown = timer.IsActive ? null : CalendarPanel.CountdownMinutes;
+        var countdown = timer.IsActive || !settings.CompactCountdownEnabled ? null : CalendarPanel.CountdownMinutes;
         var hasLeftText = timer.IsActive || countdown is not null;
         CompactTimerText.Visibility = hasLeftText ? Visibility.Visible : Visibility.Collapsed;
         CompactTimerText.Text = timer.IsActive ? TimerService.Format(timer.Remaining)
             : countdown is { } minutes ? minutes.ToString(CultureInfo.InvariantCulture) + " min"
             : string.Empty;
         // Masqué dès que le mode compact n'est plus affiché, pour arrêter l'animation.
-        PlayingIndicator.Visibility = MediaPanel.Service.IsPlaying && isCompact && !hasLeftText ? Visibility.Visible : Visibility.Collapsed;
+        PlayingIndicator.Visibility = MediaPanel.Service.IsPlaying && isCompact && !hasLeftText && settings.CompactEqualizerEnabled
+            ? Visibility.Visible : Visibility.Collapsed;
 
         var temperature = WeatherPanel.CurrentTemperature;
         var showTemperature = _settings.Current.CompactTemperatureEnabled && temperature is not null;
@@ -1113,6 +1099,8 @@ public partial class MainWindow : Window
         HwndSource.FromHwnd(_hwnd)!.AddHook(WndProc);
         PositionOnTargetScreen();
         UpdateHotkeyRegistration();
+        UpdateClipboardListening();
+        UpdateKeyIndicators();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -1130,11 +1118,20 @@ public partial class MainWindow : Window
         else if (msg == NativeMethods.WM_SETTINGCHANGE && lParam != IntPtr.Zero
             && Marshal.PtrToStringUni(lParam) == "ImmersiveColorSet" && ThemeService.NeedsRestart(_settings.Current))
         {
-            App.RestartToApplyTheme(reopenSettings: false); // Le thème de Windows vient de changer.
+            App.RestartToApplySettings(reopenSettings: false); // Le thème de Windows vient de changer.
         }
         else if (msg == NativeMethods.WM_POWERBROADCAST && wParam.ToInt32() == NativeMethods.PBT_APMPOWERSTATUSCHANGE)
         {
             CheckPowerStatus();
+        }
+        else if (msg == NativeMethods.WM_CLIPBOARDUPDATE)
+        {
+            // Différé : l'application qui copie peut garder le presse-papiers ouvert encore un instant.
+            Dispatcher.BeginInvoke(ClipboardPanel.OnClipboardChanged, DispatcherPriority.Background);
+        }
+        else if (msg == NativeMethods.WM_INPUT)
+        {
+            OnRawInput(lParam); // Non marqué comme traité : Windows doit encore libérer ces données.
         }
         return IntPtr.Zero;
     }
@@ -1161,12 +1158,23 @@ public partial class MainWindow : Window
 
     private bool IsFullscreenAppActive()
     {
+        // Windows le sait déjà pour un diaporama ou un jeu en plein écran exclusif, sans liste de fenêtres à tenir à jour.
+        if (NativeMethods.SHQueryUserNotificationState(out var state) == 0 && state == NativeMethods.QUNS_PRESENTATION_MODE)
+        {
+            return true;
+        }
         var foreground = NativeMethods.GetForegroundWindow();
         if (foreground == IntPtr.Zero || foreground == _hwnd
             || TargetScreen is not { } screen
             || !NativeMethods.GetWindowRect(foreground, out var rect))
         {
             return false;
+        }
+        // Un jeu en plein écran exclusif sur un autre écran ne doit pas masquer la capsule de celui-ci.
+        if (state == NativeMethods.QUNS_RUNNING_D3D_FULL_SCREEN
+            && NativeMethods.MonitorFromWindow(foreground, NativeMethods.MONITOR_DEFAULTTONEAREST) == screen.Handle)
+        {
+            return true;
         }
 
         // Une fenêtre agrandie ne recouvre pas la barre des tâches : seul un vrai plein écran couvre tout le moniteur.
@@ -1221,7 +1229,7 @@ public partial class MainWindow : Window
     private void UpdateClock()
     {
         var now = DateTime.Now;
-        ClockText.Text = now.ToString("HH:mm", CultureInfo.InvariantCulture);
+        ClockText.Text = ClockFormat.Format(now);
         ExpandedClockText.Text = ClockText.Text;
         CheckPowerStatus();
 

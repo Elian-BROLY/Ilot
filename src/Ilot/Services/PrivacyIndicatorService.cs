@@ -6,8 +6,9 @@ using Microsoft.Win32;
 namespace Ilot.Services;
 
 /// <summary>
-/// Détecte l'usage du micro et de la caméra via le registre tenu à jour par Windows : une application
-/// les utilise tant que sa valeur LastUsedTimeStop vaut 0. Cet emplacement n'est pas documenté par Microsoft.
+/// Détecte l'usage du micro, de la caméra et de la capture d'écran via le registre tenu à jour par Windows : une application
+/// les utilise tant que sa valeur LastUsedTimeStop vaut 0. Cet emplacement n'est pas documenté par Microsoft. Pour l'écran, seules
+/// les applications qui passent par la capture de Windows (partage d'écran des visioconférences, navigateurs) y apparaissent.
 /// </summary>
 internal sealed class PrivacyIndicatorService
 {
@@ -24,6 +25,8 @@ internal sealed class PrivacyIndicatorService
 
     public bool IsCameraInUse { get; private set; }
 
+    public bool IsScreenCaptureInUse { get; private set; }
+
     public void Start()
     {
         _timer.Start();
@@ -33,17 +36,19 @@ internal sealed class PrivacyIndicatorService
     public void Stop()
     {
         _timer.Stop();
-        Apply(false, false);
+        Apply(false, false, false);
     }
 
-    private void Refresh() => Apply(IsInUse("microphone"), IsInUse("webcam"));
+    private void Refresh() => Apply(IsInUse("microphone"), IsInUse("webcam"),
+        IsInUse("graphicsCaptureProgrammatic") || IsInUse("graphicsCaptureWithoutBorder"));
 
-    private void Apply(bool microphone, bool camera)
+    private void Apply(bool microphone, bool camera, bool screen)
     {
-        if (microphone != IsMicrophoneInUse || camera != IsCameraInUse)
+        if (microphone != IsMicrophoneInUse || camera != IsCameraInUse || screen != IsScreenCaptureInUse)
         {
             IsMicrophoneInUse = microphone;
             IsCameraInUse = camera;
+            IsScreenCaptureInUse = screen;
             Changed?.Invoke();
         }
     }

@@ -16,8 +16,13 @@ internal static class PageIds
     public const string SystemStats = "systemstats";
     public const string Calendar = "calendar";
     public const string Files = "files";
+    public const string Clipboard = "clipboard";
+    public const string Shortcuts = "shortcuts";
 
-    public static readonly string[] All = [Media, Calendar, Weather, Mail, Audio, AppVolume, Timer, Note, Files, SystemStats];
+    public static readonly string[] All = [Media, Calendar, Weather, Mail, Audio, AppVolume, Timer, Note, Files, Clipboard, Shortcuts, SystemStats];
+
+    /// <summary>Pages ajoutées masquées à un fichier qui ne les connaît pas : une mise à jour ne change pas la capsule de chacun.</summary>
+    public static readonly string[] OptIn = [Clipboard, Shortcuts];
 }
 
 internal sealed class PageEntry
@@ -98,6 +103,16 @@ internal sealed class AppSettings
     public bool AutoUpdateEnabled { get; set; } = true;
     /// <summary>Échelle de la capsule : 0,85 petite, 1 normale, 1,15 grande.</summary>
     public double CapsuleScale { get; set; } = 1;
+    /// <summary>Vrai : rendu par la carte graphique. Plus fluide sur un grand écran, mais plus gourmand en mémoire.</summary>
+    public bool HardwareRenderingEnabled { get; set; }
+    /// <summary>Une bannière quand un téléchargement du navigateur se termine, et un indicateur pendant qu'il avance.</summary>
+    public bool DownloadAlertsEnabled { get; set; } = true;
+    /// <summary>Une bannière quand Verr. Maj ou le micro changent d'état.</summary>
+    public bool KeyIndicatorsEnabled { get; set; } = true;
+    public bool CompactMailEnabled { get; set; } = true;
+    public bool CompactHeadsetEnabled { get; set; } = true;
+    public bool CompactEqualizerEnabled { get; set; } = true;
+    public bool CompactCountdownEnabled { get; set; } = true;
 }
 
 /// <summary>Réglages de l'application, enregistrés dans %APPDATA%\Ilot\settings.json.</summary>
@@ -194,7 +209,7 @@ internal sealed class SettingsStore
             .ToList();
         foreach (var id in PageIds.All.Where(id => settings.Pages.All(page => page.Id != id)))
         {
-            settings.Pages.Add(new PageEntry { Id = id });
+            settings.Pages.Add(new PageEntry { Id = id, IsEnabled = !PageIds.OptIn.Contains(id) });
         }
         // Au moins une page doit rester affichée.
         if (settings.Pages.All(page => !page.IsEnabled))

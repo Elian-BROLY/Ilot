@@ -15,8 +15,8 @@ A capsule at the top of your Windows 11 screen, inspired by the iPhone's pill-sh
 - **Media player:** controls for any app that reports to Windows, with a default player (Deezer, Spotify, Apple Music) and a small banner when the next track starts.
 - **Mail:** unread Gmail and Outlook messages, with up to two Gmail accounts, or any IMAP account with an app password. Open, mark as read or delete in one click.
 - **Calendar:** today's and tomorrow's events, a countdown in the capsule and a reminder with a join button (Google or Outlook, read-only).
-- **Everyday pages:** weather, per-app volume, audio output, timer with focus mode and Pomodoro, notes with checkboxes, file shelf and system stats.
-- **Indicators and alerts:** Windows notifications with per-app muting and quiet hours, microphone and camera dots, PC and Bluetooth headset battery.
+- **Everyday pages:** weather, per-app volume, audio output, timer with focus mode and Pomodoro, notes with checkboxes, file shelf, system stats, and two optional pages: clipboard history (kept in memory only) and quick toggles for Wi-Fi, Bluetooth, screenshot and lock.
+- **Indicators and alerts:** Windows notifications with per-app muting and quiet hours, microphone, camera and screen sharing dots, PC and Bluetooth headset battery, finished browser downloads, Caps Lock and microphone mute.
 - **Customizable keyboard shortcuts**, five animation styles, light and dark themes, several screens, English and French.
 
 ## Install

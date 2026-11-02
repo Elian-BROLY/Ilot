@@ -37,7 +37,7 @@ public partial class MainWindow
         BannerExtraText.Visibility = extra.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         AirPodsPanel.IsBannerWatching = false;
         _bannerClick = click;
-        _isTrackBannerVisible = false;
+        _isTransientBannerVisible = false;
     }
 
     private void ShowBanner(bool isConnected)
@@ -81,10 +81,15 @@ public partial class MainWindow
 
     // --- Bannières d'information : minuteur, batterie, mise à jour ---
 
-    /// <param name="keepAfterFullscreen">Vrai : en plein écran, la bannière attend la sortie au lieu d'être abandonnée.</param>
-    private void ShowInfoBanner(string glyph, string title, string status, Action? click = null, bool keepAfterFullscreen = false)
+    /// <param name="keepAfterFullscreen">
+    /// Vrai : en plein écran, la bannière attend la sortie au lieu d'être abandonnée. C'est le cas de ce que l'utilisateur a
+    /// lui-même lancé, comme un minuteur : il passe aussi les heures de silence.
+    /// </param>
+    /// <param name="evenInQuietHours">Vrai : assez important pour passer les heures de silence, comme une batterie presque vide.</param>
+    private void ShowInfoBanner(string glyph, string title, string status, Action? click = null, bool keepAfterFullscreen = false,
+        bool evenInQuietHours = false)
     {
-        if (_isHiddenForFullscreen && !keepAfterFullscreen)
+        if ((_isHiddenForFullscreen && !keepAfterFullscreen) || (IsQuietTime && !keepAfterFullscreen && !evenInQuietHours))
         {
             return;
         }
@@ -118,14 +123,14 @@ public partial class MainWindow
         var media = MediaPanel.Service;
         // Moins importante que les autres bannières : elle est abandonnée plutôt que mise en attente, le titre serait périmé.
         if (!_settings.Current.TrackBannerEnabled || !media.IsPlaying || !media.IsPreferredSourceShown || media.Title.Length == 0
-            || _isExpanded || _isHiddenForFullscreen || IsInFocusMode || (_isBannerVisible && !_isTrackBannerVisible))
+            || _isExpanded || _isHiddenForFullscreen || IsInFocusMode || (_isBannerVisible && !_isTransientBannerVisible))
         {
             return;
         }
 
         SetBannerContent(media.Title, media.Artist.Length > 0 ? media.Artist : media.SourceName, click: null, MusicGlyph, isGlyph: true, artwork: media.Thumbnail);
         BannerMailMark.Width = BannerMailMark.Height = TrackBannerMarkSize;
-        _isTrackBannerVisible = true;
+        _isTransientBannerVisible = true;
         PresentBanner(TrackBannerDuration, TrackBannerWidth, TrackBannerHeight);
     }
 
@@ -258,7 +263,7 @@ public partial class MainWindow
     private void HideBannerContent()
     {
         _isBannerVisible = false;
-        _isTrackBannerVisible = false;
+        _isTransientBannerVisible = false;
         _isBannerPressed = false;
         _bannerClick = null;
         _bannerTimer.Stop();

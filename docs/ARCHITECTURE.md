@@ -6,7 +6,8 @@
 src/Ilot/
   App.xaml(.cs)         Démarrage, instance unique, mode de rendu
   MainWindow.xaml(.cs)  Capsule : position, états, pages, animations, survol, masquage en plein écran
-  MainWindow.Banners.cs Bannières : notifications, mails, morceau suivant, alertes
+  MainWindow.Banners.cs Bannières : notifications, mails, morceau suivant
+  MainWindow.Alerts.cs  Alertes : réseau, batterie, téléchargements, Verr. Maj, micro
   MainWindow.Hotkeys.cs Raccourcis clavier globaux
   SettingsWindow.xaml   Fenêtre de réglages
   Settings/             Modèle et enregistrement des réglages
@@ -20,7 +21,7 @@ tests/Ilot.Tests/       Tests des services
 ## Choix techniques
 
 - **Fenêtre de taille fixe :** seule la capsule s'anime à l'intérieur, ce qui évite tout sautillement. Les pixels transparents laissent passer les clics.
-- **Rendu logiciel :** il réduit fortement la mémoire utilisée (voir `App.xaml.cs`).
+- **Rendu logiciel :** il réduit fortement la mémoire utilisée (voir `App.xaml.cs`). Le rendu par la carte graphique reste proposé dans les réglages pour les grands écrans très agrandis.
 - **Translucidité simulée :** un vrai effet Acrylic ou Mica est incompatible avec une fenêtre à transparence par pixel et des coins de capsule. Le panneau utilise donc un fond sombre légèrement translucide, sans flou.
 - **Écriture des fichiers :** les réglages, la note et les identifiants passent par `AtomicFile`, pour qu'une coupure de courant laisse l'ancienne version intacte.
 - **Traduction :** le texte français sert de clé (`Loc.T("...")` et XAML), et `LocEnglish.cs` donne l'anglais. Un test échoue si un texte n'y figure pas.

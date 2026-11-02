@@ -97,6 +97,21 @@
                                  Fill="#30D158"
                                  AutomationProperties.Name="Caméra utilisée"
                                  Visibility="Collapsed" />
+                        <Ellipse x:Name="CompactScreenDot"
+                                 Width="7" Height="7"
+                                 Margin="0,0,4,0"
+                                 VerticalAlignment="Center"
+                                 Fill="#0A84FF"
+                                 AutomationProperties.Name="Écran partagé"
+                                 Visibility="Collapsed" />
+                        <TextBlock x:Name="DownloadIndicator"
+                                   Margin="0,0,6,0"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{StaticResource IconFont}" FontSize="12"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   Text="&#xE896;"
+                                   AutomationProperties.Name="Téléchargement en cours"
+                                   Visibility="Collapsed" />
                         <StackPanel x:Name="MailIndicator"
                                     Orientation="Horizontal"
                                     Visibility="Collapsed">
@@ -208,6 +223,8 @@
                             <widgets:SystemStatsWidget x:Name="SystemStatsPanel" Visibility="Collapsed" />
                             <widgets:CalendarWidget x:Name="CalendarPanel" Visibility="Collapsed" />
                             <widgets:FilesWidget x:Name="FilesPanel" Visibility="Collapsed" />
+                            <widgets:ClipboardWidget x:Name="ClipboardPanel" Visibility="Collapsed" />
+                            <widgets:QuickActionsWidget x:Name="QuickActionsPanel" Visibility="Collapsed" />
                         </Grid>
                         <StackPanel x:Name="PageDots"
                                     Grid.Column="1"
@@ -231,8 +248,14 @@
                                          Visibility="Collapsed" />
                                 <Ellipse x:Name="ExpandedCameraDot"
                                          Width="7" Height="7"
+                                         Margin="0,0,4,0"
                                          Fill="#30D158"
                                          ToolTip="Caméra en cours d'utilisation"
+                                         Visibility="Collapsed" />
+                                <Ellipse x:Name="ExpandedScreenDot"
+                                         Width="7" Height="7"
+                                         Fill="#0A84FF"
+                                         ToolTip="Écran partagé ou enregistré par une application"
                                          Visibility="Collapsed" />
                             </StackPanel>
                             <Button x:Name="OutputButton"

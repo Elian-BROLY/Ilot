@@ -3,10 +3,12 @@ using Ilot.Interop;
 
 namespace Ilot.Services;
 
-/// <summary>Volume master du périphérique de sortie par défaut. À appeler depuis le thread UI uniquement.</summary>
-internal sealed class VolumeService
+/// <summary>Volume master du périphérique de sortie par défaut, ou du micro par défaut. À appeler depuis le thread UI uniquement.</summary>
+internal sealed class VolumeService(bool isMicrophone = false)
 {
     private const int ERender = 0;
+    private const int ECapture = 1;
+    private const int EConsole = 0;
     private const int EMultimedia = 1;
     private const int ClsCtxAll = 23;
 
@@ -47,9 +49,9 @@ internal sealed class VolumeService
     private void WithEndpoint(Action<IAudioEndpointVolume> action)
     {
         _enumerator ??= (IMMDeviceEnumerator)new MMDeviceEnumerator();
-        if (_enumerator.GetDefaultAudioEndpoint(ERender, EMultimedia, out var device) < 0 || device is null)
+        if (_enumerator.GetDefaultAudioEndpoint(isMicrophone ? ECapture : ERender, isMicrophone ? EConsole : EMultimedia, out var device) < 0 || device is null)
         {
-            return; // Aucune sortie audio active.
+            return; // Aucun périphérique audio actif.
         }
 
         try

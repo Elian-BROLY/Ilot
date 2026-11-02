@@ -77,6 +77,11 @@
                                        Margin="28,0,0,0"
                                        Text="Au moins un de ces raccourcis est déjà utilisé par une autre application."
                                        Visibility="Collapsed" />
+                            <CheckBox x:Name="HardwareRenderingCheck" Content="Utiliser la carte graphique pour l'affichage"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Margin="28,0,0,0"
+                                       Text="Plus fluide sur un grand écran très agrandi, mais Ilot occupe alors plus de mémoire. Ilot redémarre pour l'appliquer." />
                         </StackPanel>
                     </Border>
 
@@ -187,7 +192,15 @@
                                       Checked="Options_Changed" Unchecked="Options_Changed" />
                             <CheckBox x:Name="CompactTemperatureCheck" Content="Afficher la température à côté de l'heure"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
-                            <CheckBox x:Name="PrivacyIndicatorsCheck" Content="Signaler l'usage du micro et de la caméra"
+                            <CheckBox x:Name="CompactMailCheck" Content="Afficher le nombre de mails non lus"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="CompactHeadsetCheck" Content="Afficher l'icône du casque connecté"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="CompactEqualizerCheck" Content="Afficher l'égaliseur quand la musique joue"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="CompactCountdownCheck" Content="Afficher le compte à rebours du prochain rendez-vous"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="PrivacyIndicatorsCheck" Content="Signaler l'usage du micro, de la caméra et du partage d'écran"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                             <CheckBox x:Name="ContextualPageCheck" Content="À l'ouverture, afficher le minuteur s'il tourne, sinon le lecteur si la musique joue"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
@@ -334,7 +347,7 @@
                     <TextBlock Style="{StaticResource SectionTitle}" Text="Heures de silence" />
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
-                            <CheckBox x:Name="QuietHoursCheck" Content="Ne pas afficher les notifications et les mails sur cette plage"
+                            <CheckBox x:Name="QuietHoursCheck" Content="Ne pas afficher les notifications, les mails et les alertes sur cette plage"
                                       Checked="QuietHours_Changed" Unchecked="QuietHours_Changed" />
                             <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
                                 <TextBlock VerticalAlignment="Center" Text="De" />
@@ -347,6 +360,9 @@
                                          LostFocus="QuietHours_Changed" />
                                 <TextBlock x:Name="QuietStatusText" Style="{StaticResource Hint}" VerticalAlignment="Center" />
                             </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Margin="0,6,0,0"
+                                       Text="Vos minuteurs et une batterie presque vide s'affichent quand même." />
                         </StackPanel>
                     </Border>
 
@@ -358,6 +374,10 @@
                             <CheckBox x:Name="NetworkAlertsCheck" Content="Alerter quand la connexion tombe ou revient"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                             <CheckBox x:Name="BatteryAlertsCheck" Content="Alertes batterie (PC, AirPods, chargeur)"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="DownloadAlertsCheck" Content="Alerter à la fin d'un téléchargement du navigateur"
+                                      Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
+                            <CheckBox x:Name="KeyIndicatorsCheck" Content="Montrer Verr. Maj et le micro coupé ou réactivé"
                                       Checked="CapsuleOptions_Changed" Unchecked="CapsuleOptions_Changed" />
                         </StackPanel>
                     </Border>

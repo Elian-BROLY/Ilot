@@ -637,6 +637,7 @@ internal sealed class FakeImapStream(params (string Expected, string Reply)[] sc
 {
     private readonly Queue<(string Expected, string Reply)> _script = new(script);
     private readonly MemoryStream _toRead = Greeting();
+    private string _lastTag = string.Empty;
 
     public List<string> Commands { get; } = [];
 
@@ -651,8 +652,11 @@ internal sealed class FakeImapStream(params (string Expected, string Reply)[] sc
     public override void Write(byte[] buffer, int offset, int count)
     {
         var line = System.Text.Encoding.UTF8.GetString(buffer, offset, count).TrimEnd();
-        var tag = line[..line.IndexOf(' ')];
-        var command = line[(tag.Length + 1)..];
+        // Sans espace : la suite d'une commande, envoyée après une ligne « + » du serveur, qui garde le numéro de commande.
+        var isContinuation = line.IndexOf(' ') < 0;
+        var tag = isContinuation ? _lastTag : line[..line.IndexOf(' ')];
+        var command = isContinuation ? line : line[(tag.Length + 1)..];
+        _lastTag = tag;
         Commands.Add(command);
         var (expected, reply) = _script.Dequeue();
         Assert.StartsWith(expected, command);
@@ -680,10 +684,17 @@ public sealed class ImapClientTests : IDisposable
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 
-    private static (string, string) Fetch(string subject)
+    /// <summary>Une seule réponse FETCH pour tous les messages demandés, dans l'ordre donné.</summary>
+    private static (string, string) Fetch(params (long Uid, string Subject)[] messages)
     {
-        var headers = $"From: Jeanne <j@x.fr>\r\nSubject: {subject}\r\n\r\n";
-        return ("UID FETCH", $"* 1 FETCH (UID 1 BODY[HEADER.FIELDS (FROM SUBJECT)] {{{System.Text.Encoding.UTF8.GetByteCount(headers)}}}\r\n{headers})\r\n{{TAG}} OK\r\n");
+        var reply = new System.Text.StringBuilder();
+        var sequence = 1;
+        foreach (var (uid, subject) in messages)
+        {
+            var headers = $"From: Jeanne <j@x.fr>\r\nSubject: {subject}\r\n\r\n";
+            reply.Append($"* {sequence++} FETCH (UID {uid} BODY[HEADER.FIELDS (FROM SUBJECT)] {{{System.Text.Encoding.UTF8.GetByteCount(headers)}}}\r\n{headers})\r\n");
+        }
+        return ("UID FETCH", reply + "{TAG} OK\r\n");
     }
 
     private MailService ServiceOver(FakeImapStream stream)
@@ -705,8 +716,7 @@ public sealed class ImapClientTests : IDisposable
             ("LOGIN", LoginOk),
             ("EXAMINE INBOX", "* 3 EXISTS\r\n{TAG} OK\r\n"),
             ("UID SEARCH UNSEEN", "* SEARCH 4 9\r\n{TAG} OK\r\n"),
-            Fetch("Récent"),
-            Fetch("Ancien"));
+            Fetch((4, "Ancien"), (9, "Récent"))); // Le serveur répond dans son ordre à lui.
 
         var summary = await ServiceOver(stream).GetSummaryAsync(MailProvider.Imap);
 
@@ -716,7 +726,67 @@ public sealed class ImapClientTests : IDisposable
         Assert.Equal("Récent", summary.Items[0].Subject);
         Assert.Equal("Jeanne", summary.Items[0].Sender);
         Assert.True(summary.Items[0].IsLoaded);
+        Assert.Equal("Ancien", summary.Items[1].Subject);
         Assert.All(stream.Commands.Where(command => command.StartsWith("UID FETCH")), command => Assert.Contains("BODY.PEEK", command));
+    }
+
+    [Fact]
+    public async Task FetchesAllHeadersInOneCommand()
+    {
+        var stream = new FakeImapStream(
+            ("LOGIN", LoginOk),
+            ("EXAMINE INBOX", "{TAG} OK\r\n"),
+            ("UID SEARCH UNSEEN", "* SEARCH 4 9 12\r\n{TAG} OK\r\n"),
+            Fetch((12, "A"), (9, "B"), (4, "C")));
+
+        await ServiceOver(stream).GetSummaryAsync(MailProvider.Imap);
+
+        Assert.Single(stream.Commands, command => command.StartsWith("UID FETCH"));
+        Assert.Contains(stream.Commands, command => command.StartsWith("UID FETCH 12,9,4 "));
+    }
+
+    [Fact]
+    public void ReadsUidPlacedAfterTheHeaders()
+    {
+        var headers = "Subject: Bonjour\r\n\r\n";
+        var lines = new List<string> { "* 1 FETCH (BODY[HEADER.FIELDS (FROM SUBJECT)] {20}", headers, " UID 42)" };
+        Assert.Equal("Bonjour", ImapClient.ParseFetchedHeaders(lines)[42]["subject"]);
+    }
+
+    [Fact]
+    public async Task AccentedPasswordUsesAuthenticatePlain()
+    {
+        var expected = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("\0moi@exemple.fr\0mötdepässe"));
+        var stream = new FakeImapStream(("AUTHENTICATE PLAIN", "+ \r\n"), (expected, LoginOk));
+
+        using var client = await ImapClient.OverStreamAsync(stream, "moi@exemple.fr", "mötdepässe", CancellationToken.None);
+
+        Assert.DoesNotContain(stream.Commands, command => command.StartsWith("LOGIN"));
+    }
+
+    [Fact]
+    public async Task AsciiPasswordKeepsLogin()
+    {
+        var stream = new FakeImapStream(("LOGIN", LoginOk));
+        using var client = await ImapClient.OverStreamAsync(stream, "moi@exemple.fr", "secret", CancellationToken.None);
+        Assert.Single(stream.Commands);
+    }
+
+    [Fact]
+    public async Task SilentServerDoesNotBlockConnect()
+    {
+        var service = new MailService(Path.Combine(_folder, "mail.dat"))
+        {
+            // Le serveur accepte la connexion puis ne répond plus : seul le délai peut l'interrompre.
+            ImapConnector = async (_, _, _, token) =>
+            {
+                await Task.Delay(Timeout.Infinite, token);
+                throw new InvalidOperationException();
+            },
+        };
+        var connect = service.ConnectImapAsync("moi@gmail.com", "secret", string.Empty);
+        Assert.Same(connect, await Task.WhenAny(connect, Task.Delay(TimeSpan.FromSeconds(30))));
+        Assert.NotNull(await connect);
     }
 
     [Fact]
@@ -726,7 +796,7 @@ public sealed class ImapClientTests : IDisposable
             ("LOGIN", LoginOk),
             ("EXAMINE INBOX", "{TAG} OK\r\n"),
             ("UID SEARCH UNSEEN", "* SEARCH 9\r\n{TAG} OK\r\n"),
-            Fetch("Sujet"));
+            Fetch((9, "Sujet")));
         var service = ServiceOver(stream);
         service.Credentials.ImapAddress = "moi@orange.fr";
 
@@ -742,7 +812,7 @@ public sealed class ImapClientTests : IDisposable
             ("LOGIN", LoginOk),
             ("EXAMINE INBOX", "{TAG} OK\r\n"),
             ("UID SEARCH UNSEEN", "* SEARCH 9\r\n{TAG} OK\r\n"),
-            Fetch("Sujet"));
+            Fetch((9, "Sujet")));
 
         var summary = await ServiceOver(stream).GetSummaryAsync(MailProvider.Imap);
 

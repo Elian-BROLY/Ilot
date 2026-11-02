@@ -59,15 +59,20 @@ Ces raccourcis se changent dans les réglages. Au premier lancement, un assistan
 - **Casque** : la ligne du bas affiche les AirPods ou un autre casque Bluetooth, au choix ou masquée. Un casque autre que des AirPods n'a qu'une jauge, si Windows connaît sa batterie.
 - **Langue** : français ou anglais.
 - **Animations** : cinq styles au choix (classique, rebond, fluide, glissé, fondu), à essayer directement depuis les réglages.
-- **Micro et caméra** : point orange pour le micro, vert pour la caméra.
+- **Presse-papiers** (masquée par défaut) : les 10 derniers éléments copiés, dont 3 images au plus ; un clic les recopie. Tout reste en mémoire et disparaît à la fermeture de l'application. Les copies qu'un gestionnaire de mots de passe exclut de l'historique de Windows en sont aussi exclues.
+- **Raccourcis** (masquée par défaut) : Wi-Fi, Bluetooth, capture d'écran et verrouillage. Le mode avion ouvre les paramètres de Windows, aucune application ne pouvant le changer elle-même.
+- **Micro, caméra et écran** : point orange pour le micro, vert pour la caméra, bleu quand une application partage ou enregistre l'écran avec la capture de Windows (visioconférences, navigateurs).
 - **Alertes batterie** : PC à 20 % et 10 %, AirPods à 20 % (contrôle toutes les 5 min tant qu'ils sont connectés), chargeur branché ou débranché.
-- **Température** : affichée à côté de l'heure en mode compact, sauf si les autres indicateurs ont besoin de la place.
+- **Téléchargements** : une flèche dans la capsule pendant un téléchargement du navigateur, puis une bannière qui ouvre le dossier. Windows ne donne pas la progression d'un téléchargement ni d'une copie de fichiers.
+- **Verr. Maj et micro** : une courte bannière quand Verr. Maj ou le micro par défaut changent d'état.
+- **Capsule compacte** : la température, le nombre de mails, le casque, l'égaliseur et le compte à rebours de l'agenda s'affichent chacun au choix. La température cède sa place si les autres indicateurs en ont besoin.
+- **Heure** : au format de Windows, 24 h ou 12 h.
 
 Tout se désactive dans les réglages.
 
 ## Notifications Windows
 
-Les notifications de Windows s'affichent dans une bannière de la capsule, l'une après l'autre (sauf en plein écran). Dans les réglages, chaque application peut être coupée, et des heures de silence masquent notifications et mails sur une plage. Pour ne plus les voir aussi en bas à droite, activez « Ne pas déranger » (`Win + N`) : Windows ne permet pas à une application de le faire elle-même. Un clic sur la bannière ouvre l'application : Windows ne donne accès ni aux boutons de la notification, ni à son champ de réponse.
+Les notifications de Windows s'affichent dans une bannière de la capsule, l'une après l'autre (sauf en plein écran). Dans les réglages, chaque application peut être coupée, et des heures de silence masquent notifications, mails et alertes sur une plage ; les minuteurs et une batterie presque vide s'affichent quand même. Pour ne plus les voir aussi en bas à droite, activez « Ne pas déranger » (`Win + N`) : Windows ne permet pas à une application de le faire elle-même. Un clic sur la bannière ouvre l'application : Windows ne donne accès ni aux boutons de la notification, ni à son champ de réponse.
 
 ## Mails
 

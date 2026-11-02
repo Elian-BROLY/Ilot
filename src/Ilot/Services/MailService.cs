@@ -131,9 +131,12 @@ internal sealed class MailService
         {
             return Loc.T("Serveur inconnu : indiquez-le (imap.exemple.fr).");
         }
+        // Même délai que la relecture : un serveur qui accepte la connexion puis se tait ne doit pas bloquer les réglages.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_http.Timeout);
         try
         {
-            using var client = await ImapConnector(server, address.Trim(), password, cancellationToken);
+            using var client = await ImapConnector(server, address.Trim(), password, timeout.Token);
         }
         catch (ImapException ex)
         {

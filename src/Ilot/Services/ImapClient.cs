@@ -69,7 +69,8 @@ internal sealed partial class ImapClient : IDisposable
         {
             await tcp.ConnectAsync(host, 993, cancellationToken);
             var tls = new SslStream(tcp.GetStream(), leaveInnerStreamOpen: false);
-            await tls.AuthenticateAsClientAsync(host);
+            // Avec le jeton : un serveur qui se tait pendant la négociation ne doit pas bloquer la connexion indéfiniment.
+            await tls.AuthenticateAsClientAsync(new SslClientAuthenticationOptions { TargetHost = host }, cancellationToken);
             var client = new ImapClient(tls);
             await client.ReadGreetingAsync(cancellationToken);
             await client.LoginAsync(user, password, cancellationToken);
@@ -102,7 +103,14 @@ internal sealed partial class ImapClient : IDisposable
 
     private async Task LoginAsync(string user, string password, CancellationToken cancellationToken)
     {
-        await RunAsync($"LOGIN {Quote(user)} {Quote(password)}", cancellationToken);
+        // LOGIN n'accepte que de l'ASCII : un mot de passe accentué passe par AUTHENTICATE PLAIN, encodé en base64.
+        if (Ascii.IsValid(user) && Ascii.IsValid(password))
+        {
+            await RunAsync($"LOGIN {Quote(user)} {Quote(password)}", cancellationToken);
+            return;
+        }
+        var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"\0{user}\0{password}"));
+        await RunAsync("AUTHENTICATE PLAIN", cancellationToken, continuation: credentials);
     }
 
     /// <summary>Le nombre de non lus de la boîte de réception, et les plus récents, du plus récent au plus ancien.</summary>
@@ -115,15 +123,47 @@ internal sealed partial class ImapClient : IDisposable
             .Select(long.Parse)
             .OrderDescending()
             .ToList();
+        var wanted = uids.Take(maxItems).ToList();
         var items = new List<MailItem>();
-        foreach (var uid in uids.Take(maxItems))
+        if (wanted.Count > 0)
         {
-            var lines = await RunAsync($"UID FETCH {uid} (BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])", cancellationToken);
-            var headers = ParseHeaders(string.Join("\r\n", lines));
-            items.Add(new MailItem(uid.ToString(System.Globalization.CultureInfo.InvariantCulture), null,
-                MailHeaders.CleanSender(headers.GetValueOrDefault("from")), headers.GetValueOrDefault("subject"), null, true));
+            // Une seule commande pour tous les messages : un aller-retour par mail ralentissait les serveurs lointains.
+            var lines = await RunAsync($"UID FETCH {string.Join(',', wanted)} (UID BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])", cancellationToken);
+            var headersByUid = ParseFetchedHeaders(lines);
+            foreach (var uid in wanted)
+            {
+                var headers = headersByUid.GetValueOrDefault(uid) ?? [];
+                items.Add(new MailItem(uid.ToString(System.Globalization.CultureInfo.InvariantCulture), null,
+                    MailHeaders.CleanSender(headers.GetValueOrDefault("from")), headers.GetValueOrDefault("subject"), null, true));
+            }
         }
         return new MailSummary(uids.Count, items, null);
+    }
+
+    /// <summary>
+    /// Les en-têtes de chaque message d'une réponse FETCH, par UID. Le serveur répond dans l'ordre qu'il veut, et peut placer
+    /// l'UID avant ou après le littéral qui contient les en-têtes.
+    /// </summary>
+    internal static Dictionary<long, Dictionary<string, string>> ParseFetchedHeaders(IReadOnlyList<string> lines)
+    {
+        var result = new Dictionary<long, Dictionary<string, string>>();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (!FetchLinePattern().IsMatch(lines[i]))
+            {
+                continue;
+            }
+            var hasLiteral = LiteralPattern().IsMatch(lines[i]) && i + 1 < lines.Count;
+            var literal = hasLiteral ? lines[i + 1] : string.Empty;
+            var after = hasLiteral && i + 2 < lines.Count ? lines[i + 2] : string.Empty;
+            var uid = UidPattern().Match(lines[i]) is { Success: true } before ? before
+                : UidPattern().Match(after);
+            if (uid.Success && long.TryParse(uid.Groups[1].Value, out var value))
+            {
+                result[value] = ParseHeaders(literal);
+            }
+        }
+        return result;
     }
 
     public async Task MarkAsReadAsync(string uid, CancellationToken cancellationToken)
@@ -182,13 +222,15 @@ internal sealed partial class ImapClient : IDisposable
         long.TryParse(uid, out _) ? uid : throw new ImapException("Identifiant de message invalide");
 
     /// <summary>Envoie une commande et renvoie les lignes de réponse, littéraux compris. Lève une exception si le serveur refuse.</summary>
-    private async Task<List<string>> RunAsync(string command, CancellationToken cancellationToken)
+    /// <param name="continuation">Envoyé une fois, quand le serveur le réclame par une ligne « + » (AUTHENTICATE).</param>
+    private async Task<List<string>> RunAsync(string command, CancellationToken cancellationToken, string? continuation = null)
     {
         var tag = $"A{++_tag:000}";
         await _stream.WriteAsync(Encoding.UTF8.GetBytes($"{tag} {command}\r\n"), cancellationToken);
         await _stream.FlushAsync(cancellationToken);
 
         var lines = new List<string>();
+        var isLogin = command.StartsWith("LOGIN", StringComparison.Ordinal) || command.StartsWith("AUTHENTICATE", StringComparison.Ordinal);
         while (true)
         {
             var line = await ReadLineAsync(cancellationToken);
@@ -196,9 +238,18 @@ internal sealed partial class ImapClient : IDisposable
             {
                 if (!line[(tag.Length + 1)..].StartsWith("OK", StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new ImapException(command.StartsWith("LOGIN", StringComparison.Ordinal) ? LoginRefused : "Commande refusée par le serveur");
+                    throw new ImapException(isLogin ? LoginRefused : "Commande refusée par le serveur");
                 }
                 return lines;
+            }
+            if (line.StartsWith('+'))
+            {
+                // Sans réponse à donner, mieux vaut annuler que laisser le serveur attendre.
+                var reply = continuation ?? "*";
+                continuation = "*";
+                await _stream.WriteAsync(Encoding.UTF8.GetBytes(reply + "\r\n"), cancellationToken);
+                await _stream.FlushAsync(cancellationToken);
+                continue;
             }
             lines.Add(line);
             var literal = LiteralPattern().Match(line);
@@ -243,6 +294,12 @@ internal sealed partial class ImapClient : IDisposable
 
     [GeneratedRegex(@"\{(\d+)\}$")]
     private static partial Regex LiteralPattern();
+
+    [GeneratedRegex(@"^\* \d+ FETCH ", RegexOptions.IgnoreCase)]
+    private static partial Regex FetchLinePattern();
+
+    [GeneratedRegex(@"\bUID (\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex UidPattern();
 
     [GeneratedRegex(@"\r?\n[ \t]+")]
     private static partial Regex FoldPattern();

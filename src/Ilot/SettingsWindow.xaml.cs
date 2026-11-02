@@ -32,6 +32,8 @@ public partial class SettingsWindow : Window
         [PageIds.Note] = "Note rapide",
         [PageIds.AppVolume] = "Volume par application",
         [PageIds.SystemStats] = "Système : CPU, mémoire, réseau",
+        [PageIds.Clipboard] = "Presse-papiers : les derniers éléments copiés",
+        [PageIds.Shortcuts] = "Raccourcis : Wi-Fi, Bluetooth, capture, verrouillage",
     };
 
     internal static string PageLabelFor(string id) => PageLabels[id];
@@ -103,6 +105,13 @@ public partial class SettingsWindow : Window
         GlobalHotkeyCheck.IsChecked = settings.GlobalHotkeyEnabled;
         FocusWithTimerCheck.IsChecked = settings.FocusWithTimerEnabled;
         NetworkAlertsCheck.IsChecked = settings.NetworkAlertsEnabled;
+        DownloadAlertsCheck.IsChecked = settings.DownloadAlertsEnabled;
+        KeyIndicatorsCheck.IsChecked = settings.KeyIndicatorsEnabled;
+        HardwareRenderingCheck.IsChecked = settings.HardwareRenderingEnabled;
+        CompactMailCheck.IsChecked = settings.CompactMailEnabled;
+        CompactHeadsetCheck.IsChecked = settings.CompactHeadsetEnabled;
+        CompactEqualizerCheck.IsChecked = settings.CompactEqualizerEnabled;
+        CompactCountdownCheck.IsChecked = settings.CompactCountdownEnabled;
         RenderHotkeyStatus();
 
         ThemeCombo.SelectedIndex = settings.FollowSystemTheme ? 2 : settings.LightTheme ? 1 : 0;
@@ -298,8 +307,20 @@ public partial class SettingsWindow : Window
         }
         ImapButton.IsEnabled = false;
         ImapStatusText.Text = Loc.T("Connexion…");
-        ImapStatusText.Text = await mail.ConnectImapAsync(ImapAddressBox.Text, ImapPasswordBox.Password, ImapHostBox.Text) ?? Loc.T("Compte connecté.");
-        ImapButton.IsEnabled = true;
+        try
+        {
+            ImapStatusText.Text = await mail.ConnectImapAsync(ImapAddressBox.Text, ImapPasswordBox.Password, ImapHostBox.Text) ?? Loc.T("Compte connecté.");
+        }
+        catch (Exception ex)
+        {
+            // Un nom de serveur mal formé, par exemple : le bouton doit rester utilisable pour corriger.
+            AppLog.Write(ex);
+            ImapStatusText.Text = Loc.T("Serveur injoignable. Vérifiez son nom et le réseau.");
+        }
+        finally
+        {
+            ImapButton.IsEnabled = true;
+        }
         ImapHostBox.Text = mail.Credentials.ImapHost ?? ImapHostBox.Text;
         RenderMailAccounts();
     }
@@ -477,6 +498,13 @@ public partial class SettingsWindow : Window
             settings.WheelVolumeEnabled = WheelVolumeCheck.IsChecked == true;
             settings.PomodoroControlsMusic = PomodoroMusicCheck.IsChecked == true;
             settings.PomodoroButtonEnabled = PomodoroButtonCheck.IsChecked == true;
+            settings.DownloadAlertsEnabled = DownloadAlertsCheck.IsChecked == true;
+            settings.KeyIndicatorsEnabled = KeyIndicatorsCheck.IsChecked == true;
+            settings.HardwareRenderingEnabled = HardwareRenderingCheck.IsChecked == true;
+            settings.CompactMailEnabled = CompactMailCheck.IsChecked == true;
+            settings.CompactHeadsetEnabled = CompactHeadsetCheck.IsChecked == true;
+            settings.CompactEqualizerEnabled = CompactEqualizerCheck.IsChecked == true;
+            settings.CompactCountdownEnabled = CompactCountdownCheck.IsChecked == true;
         });
         RenderHotkeyStatus();
     }

@@ -133,7 +133,7 @@ public partial class CalendarWidget : UserControl
     {
         var start = item.StartUtc.ToLocalTime();
         var isToday = start.Date == DateTime.Now.Date;
-        var time = item.IsAllDay ? Loc.T("Journée") : start.ToString("HH:mm", CultureInfo.InvariantCulture);
+        var time = item.IsAllDay ? Loc.T("Journée") : ClockFormat.Format(start);
         var day = isToday ? string.Empty : Loc.T("Demain") + " ";
 
         var timeText = new TextBlock

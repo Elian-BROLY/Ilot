@@ -29,6 +29,9 @@ public partial class App : Application
 
     internal static bool IsHotkeyRegistered { get; set; }
 
+    /// <summary>Le mode de rendu choisi au démarrage : en changer demande de relancer l'application.</summary>
+    internal static bool IsHardwareRendering { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -51,8 +54,13 @@ public partial class App : Application
         {
             ListenForOtherInstances();
 
-            // Une fenêtre aussi petite n'a pas besoin du GPU, et éviter Direct3D économise beaucoup de mémoire.
-            RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
+            // Une fenêtre aussi petite n'a pas besoin du GPU, et éviter Direct3D économise beaucoup de mémoire. Sur un écran 4K
+            // très agrandi, le processeur peine pourtant à suivre les animations : le GPU reste alors proposé dans les réglages.
+            IsHardwareRendering = Settings.Current.HardwareRenderingEnabled;
+            if (!IsHardwareRendering)
+            {
+                RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
+            }
 
             Loc.SetLanguage(Settings.Current.Language);
             ThemeService.ApplyAtStartup(Settings.Current);
@@ -100,7 +108,7 @@ public partial class App : Application
     }
 
     /// <summary>Relance l'application. Les réglages sont rouverts si le changement de thème vient de leur fenêtre.</summary>
-    internal static void RestartToApplyTheme(bool reopenSettings = true)
+    internal static void RestartToApplySettings(bool reopenSettings = true)
     {
         var app = (App)Current;
         if (!app._isRestarting)
