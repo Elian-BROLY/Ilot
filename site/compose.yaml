@@ -1,0 +1,6 @@
+services:
+  ilot-site:
+    build: .
+    ports:
+      - "8097:80"
+    restart: unless-stopped
