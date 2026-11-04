@@ -12,7 +12,7 @@ Une capsule en haut de l'écran de Windows 11, inspirée de la pastille de l'iPh
 
 ## Installer
 
-Téléchargez `Ilot-win-Setup.exe` depuis les [Releases](https://github.com/Elian-BROLY/Ilot/releases). Il installe aussi le runtime .NET 10 Desktop s'il manque, ce qui demande une fois les droits administrateur. L'application télécharge ensuite les mises à jour toute seule, et les installe quand vous cliquez sur sa bannière.
+Téléchargez `Ilot-win-Setup.exe` sur [ilot.ebroly.fr](https://ilot.ebroly.fr) ou depuis les [Releases](https://github.com/Elian-BROLY/Ilot/releases). Il installe aussi le runtime .NET 10 Desktop s'il manque, ce qui demande une fois les droits administrateur. L'application télécharge ensuite les mises à jour toute seule, et les installe quand vous cliquez sur sa bannière.
 
 L'exécutable n'est pas signé. Windows peut donc afficher un avertissement SmartScreen, et le **Contrôle intelligent des applications**, s'il est activé, peut refuser de lancer une version : Windows décide selon la réputation de chaque fichier.
 
@@ -123,7 +123,7 @@ Prérequis : SDK .NET 10.
 | `publish.cmd` | Génère `dist\` |
 | `make-installer.cmd` | Génère `installer\Ilot-win-Setup.exe` |
 
-Pour contribuer, voir [CONTRIBUTING.md](CONTRIBUTING.md). Pour la structure du code et la publication, voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Pour contribuer, voir [CONTRIBUTING.md](CONTRIBUTING.md). Pour la structure du code et la publication, voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Le site de téléchargement est dans [site/](site/README.md).
 
 ## Licence
 

@@ -21,7 +21,7 @@ A capsule at the top of your Windows 11 screen, inspired by the iPhone's pill-sh
 
 ## Install
 
-Download `Ilot-win-Setup.exe` from [Releases](https://github.com/Elian-BROLY/Ilot/releases). It installs the .NET 10 Desktop runtime if needed, which requires administrator rights once. Ilot then downloads updates by itself, and installs them when you click its banner.
+Download `Ilot-win-Setup.exe` from [ilot.ebroly.fr](https://ilot.ebroly.fr) or from [Releases](https://github.com/Elian-BROLY/Ilot/releases). It installs the .NET 10 Desktop runtime if needed, which requires administrator rights once. Ilot then downloads updates by itself, and installs them when you click its banner.
 
 The app is not code-signed yet. Windows may show a SmartScreen warning, and **Smart App Control**, if enabled, may refuse to run a given version.
 
@@ -33,7 +33,7 @@ Ilot only shows the unread count, sender and subject of your mail. Deleting mail
 
 ## Develop
 
-Requires the .NET 10 SDK. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Requires the .NET 10 SDK. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The download site lives in [site/](site/README.md).
 
 ```
 dotnet run --project src\Ilot
