@@ -1,6 +1,7 @@
+name: ilot   # nom du projet Docker fixé (~/ilot est un lien vers ce dossier)
 services:
   ilot-site:
     build: .
     ports:
-      - "8097:80"
+      - "172.17.0.1:8097:80"
     restart: unless-stopped
